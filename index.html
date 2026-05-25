@@ -5324,7 +5324,7 @@
             // Ruleta generados hoy: contar pendientes + ya cogidos hoy con dailyDay igual
             const rouletteAccepted = state.orders.filter(o => o.rouletteContract && o.status !== "email" && o.acceptedDayKey === state.dailyOrderDay).length;
             const rouletteGen = rouletteAvail + rouletteAccepted;
-            const capacity = `<div class="metrics">${metricHtml("📋 Diarios disponibles hoy", `${dailyAvail}/${dailyGen}`, "📦")}${state.commercialOffices?.length ? metricHtml("🏢 Oficinas disponibles hoy", `${officeAvail}/${officeGen}`, "🏢") : ""}${metricHtml("🎡 Ruleta disponibles hoy", `${rouletteAvail}/${rouletteGen}`, "🎡")}${metricHtml("Autónomos activos", `${state.activeTrips.filter(t => t.external).length}/${MAX_AUTONOMOS_BASE}`, "🚚")}</div><p class="muted">A las 00:00 se eliminan los pedidos no aceptados y entra una tanda nueva. Tarifa autónomo: ${AUTONOMO_KM_COST.toFixed(2)} €/km. Cada pedido incluye 100 € de carga y descarga.${state.commercialOffices?.length ? ` Las oficinas comerciales garantizan entre 1 y 2 pedidos diarios cada una.` : ""}</p>`;
+            const capacity = `<div class="metrics">${metricHtml("📋 Diarios disponibles hoy", `${dailyAvail}/${dailyGen}`, "📦")}${state.commercialOffices?.length ? metricHtml("🏢 Oficinas disponibles hoy", `${officeAvail}/${officeGen}`, "🏢") : ""}${metricHtml("Autónomos activos", `${state.activeTrips.filter(t => t.external).length}/${MAX_AUTONOMOS_BASE}`, "🚚")}</div><p class="muted">A las 00:00 se eliminan los pedidos no aceptados y entra una tanda nueva. Tarifa autónomo: ${AUTONOMO_KM_COST.toFixed(2)} €/km. Cada pedido incluye 100 € de carga y descarga.${state.commercialOffices?.length ? ` Las oficinas comerciales garantizan entre 1 y 2 pedidos diarios cada una.` : ""}</p>`;
             // Plazos and sanciones — only show at bottom of "available" tab
             const plazosInfo = `<div class="card" style="border-color:#e8a504;background:rgba(232,165,4,.08);margin-top:20px"><h3 style="margin-top:0">📅 Plazos y sanciones</h3><p style="margin:4px 0"><strong>Plazos de entrega tras aceptar:</strong></p><ul style="margin:4px 0 8px 20px;padding:0"><li>Pedidos diarios normales, fidelidad y ruleta: <strong>${MAX_ACCEPTED_ORDER_DAYS} días</strong></li><li>Pedidos de oficina comercial: <strong>${MAX_OFFICE_ORDER_DAYS} días</strong></li></ul><p style="margin:4px 0"><strong>📍 El pedido cuenta como entregado cuando el camión VUELVE A BASE, no cuando descarga al cliente.</strong></p><p style="margin:8px 0 4px"><strong>⚠️ Sanción por incumplir plazo: ${fmtMoney(ACCEPTED_ORDER_EXPIRY_PENALTY)} en todos los casos.</strong></p><ul style="margin:4px 0 4px 20px;padding:0"><li><strong>Pedido aceptado SIN despachar al vencer:</strong> se cancela y pagas ${fmtMoney(ACCEPTED_ORDER_EXPIRY_PENALTY)} + (si cliente permanente: -1% fidelidad)</li><li><strong>Pedido EN RUTA al vencer:</strong> el viaje continúa normal. Cuando el camión llega a base, cobras el importe completo y pagas ${fmtMoney(LATE_IN_TRANSIT_PENALTY)} de sanción + (si cliente permanente: -1% fidelidad)</li><li><strong>Contratos ruleta 2x vencidos:</strong> se eliminan sin coste ni sanción</li></ul></div>`;
 
@@ -5887,6 +5887,13 @@
                 const next = start + ((worker.salaryPaidMonths || 0) + 1) * monthMs;
                 addDay(next, `Nómina ${worker.first} ${worker.last} (${worker.role})`, worker.salary + SOCIAL_SECURITY_PER_WORKER + GESTORIA_MONTHLY_PER_WORKER);
             });
+            // ETT temporary workers — charged at midnight daily
+            const ettWorkers = state.workers.filter(w => w.temporary);
+            if (ettWorkers.length > 0) {
+                const nextMidnight = nextLocalMidnightTs();
+                const ettCost = ettWorkers.length * TEMP_WORKER_DAILY_COST;
+                addDay(nextMidnight, `${ettWorkers.length} trabajador${ettWorkers.length > 1 ? "es" : ""} ETT (00:00 diario)`, ettCost);
+            }
             (state.commercialOffices || []).forEach(office => {
                 const start = office.createdAt || now;
                 const next = start + ((office.rentPaidMonths || 0) + 1) * monthMs;
@@ -6928,6 +6935,27 @@
             const worker = state.workers.find(w => w.id === workerId);
             if (!worker) return;
             if (worker.status === "Conduciendo" || worker.currentTripId) return notify("Despido bloqueado", "No puedes despedir a un trabajador mientras está en ruta.", "danger", true);
+            // Special handling for ETT temporary workers
+            if (worker.temporary) {
+                // ETT: pay full day even if dismissed before midnight
+                const dailyCost = TEMP_WORKER_DAILY_COST;
+                const ettHeader = `¿Devolver a la ETT a ${worker.first} ${worker.last}?`;
+                const ettLines = [
+                    `\n💰 COSTE DEL DESPIDO:`,
+                    `• Día completo de hoy (aunque despidas antes de las 00:00): ${fmtMoney(dailyCost)}`,
+                    `\nTOTAL A PAGAR AHORA: ${fmtMoney(dailyCost)}`,
+                    `\nSaldo actual: ${fmtMoney(state.bank.balance)}`
+                ];
+                if (state.bank.balance < dailyCost) ettLines.push(`⛔ Saldo insuficiente.`);
+                if (!confirm(`${ettHeader}${ettLines.join("\n")}`)) return;
+                if (state.bank.balance < dailyCost) return notify("Saldo insuficiente", `Debes pagar ${fmtMoney(dailyCost)} del día ETT.`, "danger", true);
+                addMovement("expense", `Despido ETT ${worker.first} ${worker.last} (día completo)`, -dailyCost);
+                state.workers = state.workers.filter(w => w.id !== workerId);
+                addEmail("ett@trabajotemporal.eu", `Devolución ETT: ${worker.first} ${worker.last}`, `Se ha devuelto al trabajador temporal ${worker.first} ${worker.last} a la empresa de trabajo temporal. Coste del día cobrado: ${fmtMoney(dailyCost)}.`, "staff", workerId);
+                notify("Trabajador ETT devuelto", `${worker.first} ${worker.last} ha vuelto a la ETT. Coste: ${fmtMoney(dailyCost)}.`, "warn");
+                renderAll(); saveGame(true);
+                return;
+            }
             const days = employmentDays(worker);
             const compensation = days * DISMISSAL_COMPENSATION_PER_DAY;
             const fullSalary = worker.salary || 0;
@@ -7117,8 +7145,11 @@
             if (!vehicle || vehicle.acquisition !== "rent") return;
             if (vehicle.status !== "Base") return notify("Renting bloqueado", "Solo puedes finalizar el contrato si el vehiculo esta en base.", "warn", true);
             const cost = vehicle.rentMonthly || 0;
+            const kindLabel = kind === "truck" ? "tractora" : "cisterna";
+            const signFee = vehicle.duoTrailer ? RENTING_INITIAL_DUO_FEE : RENTING_INITIAL_TRUCK_FEE;
+            const message = `¿Finalizar renting de ${kindLabel} ${vehicle.plate}?\n\n📦 ${vehicle.brand} ${vehicle.model}\n📏 Km acumulados: ${fmtNum(vehicle.km || 0)}\n\n💰 Cuota mensual: ${fmtMoney(cost)}/mes\n💵 Firma pagada (NO se reembolsa): ${fmtMoney(signFee)}\n\n⚠️ COSTE DE FINALIZAR:\n• Mes completo final: ${fmtMoney(cost)}\n• El vehículo se entrega al concesionario\n• No recibes nada por el vehículo (es alquilado)\n\nSaldo actual: ${fmtMoney(state.bank.balance)}\n\n¿Confirmar finalización?`;
             if (state.bank.balance < cost) return notify("Saldo insuficiente", `Finalizar el renting requiere pagar el mes completo: ${fmtMoney(cost)}.`, "danger", true);
-            if (!confirm(`Finalizar renting de ${vehicle.plate}. Pagaras el mes completo (${fmtMoney(cost)}) y se entregara al concesionario.`)) return;
+            if (!confirm(message)) return;
             addMovement("expense", `Finalizacion renting ${vehicle.plate}`, -cost);
             if (kind === "truck") state.fleet = state.fleet.filter(v => v.id !== id);
             else state.cisterns = state.cisterns.filter(v => v.id !== id);
@@ -7131,7 +7162,11 @@
             if (!vehicle || vehicle.acquisition !== "buy") return;
             if (vehicle.status !== "Base") return notify("Venta bloqueada", "Solo puedes vender vehiculos propios si estan en base.", "warn", true);
             const value = resaleValue(vehicle);
-            if (!confirm(`Vender ${vehicle.plate} por ${fmtMoney(value)} segun km, desgaste y antiguedad?`)) return;
+            const originalPrice = vehicle.purchasePrice || 0;
+            const loss = originalPrice - value;
+            const kindLabel = kind === "truck" ? "tractora" : "cisterna";
+            const message = `¿Vender ${kindLabel} ${vehicle.plate}?\n\n📦 ${vehicle.brand} ${vehicle.model}\n📏 Km acumulados: ${fmtNum(vehicle.km || 0)}\n🔧 Desgaste actual: ${Math.round(vehicle.wear || 0)}%\n\n💰 Precio de compra original: ${fmtMoney(originalPrice)}\n💵 Precio de venta hoy: ${fmtMoney(value)}\n${loss > 0 ? `📉 Pérdida: ${fmtMoney(loss)} (depreciación)` : `📈 Ganancia: ${fmtMoney(-loss)}`}\n\n¿Confirmar venta?`;
+            if (!confirm(message)) return;
             addMovement("income", `Venta ${vehicle.plate}`, value);
             if (kind === "truck") state.fleet = state.fleet.filter(v => v.id !== id);
             else state.cisterns = state.cisterns.filter(v => v.id !== id);
