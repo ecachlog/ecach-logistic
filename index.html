@@ -4957,6 +4957,25 @@
 
         function processOrdersArrival(now) {
             const day = orderDayKey(now);
+            // Migration: existing partidas have state.dailyOrderDay using OLD format (localDayKey).
+            // To avoid wiping orders unexpectedly, migrate the day reference once.
+            // If we still have orders from yesterday's date that haven't been served and now we're before 19h,
+            // those should stay as the current day's orders.
+            if (!state.orderRenewalMigrated) {
+                const todayLocal = localDayKey(new Date(now));
+                const yesterdayLocal = localDayKey(new Date(now - MS_DAY));
+                // If dailyOrderDay matches today (old format), shift it to use new format
+                if (state.dailyOrderDay === todayLocal) {
+                    state.dailyOrderDay = day;
+                    // Update all existing orders' dailyDay to match new format
+                    state.orders.forEach(o => {
+                        if (o.dailyDay === todayLocal || o.dailyDay === yesterdayLocal) {
+                            o.dailyDay = day;
+                        }
+                    });
+                }
+                state.orderRenewalMigrated = true;
+            }
             if (state.dailyOrderDay !== day) resetDailyAvailableOrders(now);
             else expireWeeklyAvailableOrders(now);
             processAcceptedOrderDeadlines(now);
