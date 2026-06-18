@@ -369,26 +369,29 @@
     </style>
     <style>
     /* ===== Tutorial interactivo guiado (coach marks) ===== */
-    #coachOverlay { position: fixed; inset: 0; z-index: 100000; display: none; }
-    #coachOverlay.active { display: block; }
-    #coachBackdrop { position: absolute; inset: 0; background: transparent; }
-    #coachHole {
-        position: absolute;
-        border: 3px solid #e8a504;
-        border-radius: 12px;
-        box-shadow: 0 0 0 9999px rgba(0,0,0,.70), 0 0 28px rgba(232,165,4,.9), inset 0 0 0 9999px transparent;
-        transition: all .3s ease;
-        pointer-events: none;
-        background: transparent;
-        z-index: 1;
+    #coachOverlay { position: fixed; inset: 0; z-index: 100000; display: none; pointer-events: none; }
+    #coachOverlay.active { display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.60); pointer-events: all; }
+    #coachBackdrop { display: none; }
+    #coachHole { display: none; }
+    #coachBubble {
+        position: relative;
+        max-width: 400px;
+        width: calc(100% - 32px);
+        background: #161d27;
+        border: 2px solid #e8a504;
+        border-radius: 18px;
+        padding: 24px 22px 18px;
+        box-shadow: 0 0 40px rgba(232,165,4,.3), 0 24px 60px rgba(0,0,0,.7);
+        z-index: 2;
+        transform: none !important;
+        top: auto !important; left: auto !important; bottom: auto !important; right: auto !important;
     }
-    #coachBubble { position: absolute; max-width: 320px; width: calc(100% - 32px); background: #161d27; border: 1px solid #e8a504; border-radius: 14px; padding: 16px 18px; box-shadow: 0 18px 50px rgba(0,0,0,.6); z-index: 2; }
-    #coachBubble h3 { margin: 0 0 6px; font-size: 16px; color: #e8a504; }
-    #coachBubble p { margin: 0 0 12px; font-size: 13.5px; color: #d7dee8; line-height: 1.5; }
+    #coachBubble h3 { margin: 0 0 10px; font-size: 18px; color: #e8a504; }
+    #coachBubble p { margin: 0 0 16px; font-size: 14px; color: #d7dee8; line-height: 1.6; }
     #coachBubble .coach-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-    #coachBubble .coach-step { font-size: 11px; color: #8a97a8; }
+    #coachBubble .coach-step { font-size: 12px; color: #8a97a8; }
     #coachBubble .coach-btns { display: flex; gap: 8px; }
-    #coachBubble button { padding: 8px 14px; border-radius: 8px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; }
+    #coachBubble button { padding: 10px 18px; border-radius: 8px; border: none; font-size: 14px; font-weight: 700; cursor: pointer; }
     #coachBubble .coach-next { background: #e8a504; color: #0d1117; }
     #coachBubble .coach-skip { background: transparent; color: #8a97a8; border: 1px solid #2a3340; }
     </style>
@@ -5881,6 +5884,9 @@
                         driver.drivingToday = 0;
                         driver.continuousDriving = 0;
                         driver.lastRestEndTs = now;
+                        driver.restStartTs = now; // keep restStartTs in sync so render can show elapsed rest time
+                        driver.restUntilTs = null;
+                        driver.restMandatory = false;
                         driver.restLocked = false; // unlock when 11h rest completes
                     }
                 }
@@ -6848,9 +6854,8 @@
                     const restStart = d.restStartTs || d.lastRestEndTs || nowT;
                     const restSoFar = (nowT - restStart) / MS_HOUR;
                     const tachoReady = restSoFar >= TACHO_DAILY_REST_HOURS;
-                    if (d.drivingToday > 0 || tachoReady) {
-                        restBadge = `<br><span style="font-size:11px;color:${tachoReady ? "#35c759" : "#8f9baa"}">😴 ${fmtDurationHours(Math.min(restSoFar, 24))} descansado${tachoReady ? " · ✅ Tacho a 0" : ` · reset en ${fmtDurationHours(Math.max(0, TACHO_DAILY_REST_HOURS - restSoFar))}`}</span>`;
-                    }
+                    // Always show rest badge when driver is in base so player can see elapsed rest time
+                    restBadge = `<br><span style="font-size:11px;color:${tachoReady ? "#35c759" : "#8f9baa"}">😴 ${fmtDurationHours(Math.min(restSoFar, 24))} descansado${tachoReady ? " · ✅ Tacho a 0" : ` · reset en ${fmtDurationHours(Math.max(0, TACHO_DAILY_REST_HOURS - restSoFar))}`}</span>`;
                 }
                 // Rest lock: only available for drivers IN BASE that are resting (not in trip)
                 const isResting2 = !d.currentTripId && d.drivingToday > 0;
@@ -10982,6 +10987,8 @@
                         w.restUntilTs = null;
                         w.restMandatory = false;
                         w.restLocked = false;
+                        // DO NOT overwrite restStartTs here — it marks when rest began and is used by
+                        // the render to show elapsed rest time. Only update lastRestEndTs.
                         w.lastRestEndTs = Date.now();
                         repaired = true;
                     }
@@ -11983,36 +11990,34 @@
               text: "Te voy a enseñar paso a paso cómo funciona el juego. Tú irás jugando de verdad mientras te guío. Puedes saltar esta guía cuando quieras y volver a verla desde el menú 🎓 Tutorial." },
             { section: "dashboard", target: null, title: "1. El mapa y tu base 📍",
               text: "Esta es tu pantalla principal con el mapa. Si aún no has puesto tu base, tócala en el mapa CERCA DE UN PUERTO (a menos de 20 km). El camión sale de tu base al puerto a cargar, así que cuanto más cerca, mejor margen." },
-            { section: "orders", target: 'orders', title: "2. Aceptar pedidos 📦",
+            { section: "orders", target: null, title: "2. Aceptar pedidos 📦",
               text: "Aquí ves los pedidos del día. Pulsa 'Aceptar' en uno que te interese y pasará a la pestaña 'Aceptados'. Cada pedido te paga por km + 100€ de carga y descarga." },
-            { section: "orders", target: 'orders', title: "3. Despachar el pedido 🚀",
+            { section: "orders", target: null, title: "3. Despachar el pedido 🚀",
               text: "En la pestaña 'Aceptados', elige una tractora, una cisterna y un conductor, y pulsa 'Despachar flota propia'. Si no tienes camión libre, puedes subcontratar un autónomo (cuesta más: úsalo solo para no perder al cliente)." },
-            { section: "fleet", target: 'fleet', title: "4. Tu flota 🚛",
+            { section: "fleet", target: null, title: "4. Tu flota 🚛",
               text: "Aquí ves tus camiones y cisternas: su combustible, desgaste, neumáticos, ITV y el tacógrafo de cada conductor. Desde aquí haces revisiones, cambias neumáticos y pasas la ITV cuando toca." },
-            { section: "staff", target: 'staff', title: "5. Personal 👷",
+            { section: "staff", target: null, title: "5. Personal 👷",
               text: "Aquí contratas conductores, mecánicos y administrativos, ves sus sueldos y puedes darles de baja. Necesitas conductores para mover camiones, mecánicos para mantenimiento y administrativos para gestionar más pedidos." },
-            { section: "shop", target: 'shop', title: "6. Tienda: comprar y alquilar 🛒",
+            { section: "shop", target: null, title: "6. Tienda: comprar y alquilar 🛒",
               text: "Aquí compras o alquilas (renting) tractoras y cisternas. Comprar cuesta mucho de golpe; el renting es una cuota mensual. Empieza con poco e invierte según crezcas." },
-            { section: "finance", target: 'finance', title: "7. Finanzas: facturas y pagos 💶",
+            { section: "finance", target: null, title: "7. Finanzas: facturas y pagos 💶",
               text: "Aquí está tu dinero: el saldo, las facturas que cobras de clientes, las que pagas (gasoil, sueldos, alquileres) y todos los movimientos bancarios. Revísalo a menudo para no quedarte sin dinero." },
-            { section: "warehouse", target: 'warehouse', title: "8. La nave 🏭",
+            { section: "warehouse", target: null, title: "8. La nave 🏭",
               text: "Tu nave guarda los camiones y el gasoil. Aquí repostas del depósito (más barato que en ruta), amplías plazas y controlas el combustible. Repostar siempre en la nave antes de salir te ahorra dinero." },
-            { section: "clients", target: 'clients', title: "9. Clientes y fidelidad 🤝",
-              text: "Cada cliente permanente tiene fidelidad (0-100%). Entregar a tiempo sube +1%; cada día (renovación de las 20:00) con un pedido suyo sin completar baja -1%. Al 100% te ofrecen contrato fijo con +1€/km extra. Si compartes un pedido a un compañero y lo entrega a tiempo, tu fidelidad también sube. Recibes un email con cada cambio." },
-            { section: "wheel", target: 'wheel', title: "10. Ruleta diaria 🎡",
+            { section: "clients", target: null, title: "9. Clientes y fidelidad 🤝",
+              text: "Cada cliente permanente tiene fidelidad (0-100%). Entregar a tiempo sube +1%; cada día (renovación de las 20:00) con un pedido suyo sin completar baja -1%. Al 100% te ofrecen contrato fijo con +1€/km extra. Recibes un email con cada cambio." },
+            { section: "wheel", target: null, title: "10. Ruleta diaria 🎡",
               text: "Cada día puedes girar la ruleta gratis y ganar premios: descuentos de gasoil, pedidos especiales, días sin multas, etc. ¡No olvides girarla cada día!" },
-            { section: "slots", target: 'slots', title: "10b. Tragaperras 🎰",
-              text: "Una máquina de azar de 3 rodillos que se desbloquea en el nivel 3. Cada tirada cuesta 100 € y ganas si salen 3 símbolos iguales en la fila central. Hay premios desde 500 € hasta un jackpot de 30.000 € con el 7️⃣. Máximo 50 tiradas cada 24 horas. ¡Prueba suerte!" },
-            { section: "alliance", target: 'alliance', title: "11. Alianzas ⚔️",
+            { section: "slots", target: null, title: "10b. Tragaperras 🎰",
+              text: "Una máquina de azar de 3 rodillos que se desbloquea en el nivel 3. Cada tirada cuesta 100 € y ganas si salen 3 símbolos iguales en la fila central. Hay premios desde 500 € hasta un jackpot de 30.000 €. Máximo 50 tiradas cada 24 horas." },
+            { section: "alliance", target: null, title: "11. Alianzas ⚔️",
               text: "Únete o crea una alianza para cooperar con otros jugadores: acumular un fondo común, construir gasolineras juntos y competir en el ranking de alianzas." },
-            { section: "fleet", target: 'fleet', title: "11b. Remolque Jet A-1 y carné ✈️",
-              text: "Para los futuros contratos aeroportuarios necesitarás transportar combustible de aviación (Jet A-1). Para ello hay un remolque especial 'Tank JetA1' en la tienda de remolques (compra 200.000 € o renting ~3.334 €/mes), que SOLO sirve para contratos aeroportuarios. Además, cada conductor que vaya a llevarlo necesita el 'Carné Jet A-1', un curso de 5.000 € que se saca en 24 h desde la ficha del conductor (Formación). Sin remolque Y conductor con carné no podrás aceptar viajes aeroportuarios." },
-            { section: "alliance", target: 'alliance', title: "11c. Oficina y contratos aeroportuarios 🛫",
-              text: "Dentro de Alianzas, el propietario puede construir la OFICINA AEROPORTUARIA (gratis, queda reflejada en las posesiones de la alianza). Una vez construida, tu alianza ve los CONTRATOS de Jet A-1: pedidos de aeropuertos reales de Europa que aparecen a lo largo del día (primero como '🔜 Próximamente'). Son globales para todas las alianzas: el primero que acepta se lo lleva. Cada contrato tiene varios viajes (32.000 L cada uno) y un plazo de 15 días desde que se genera. En el mapa verás un 🛬 en el aeropuerto de tu contrato activo." },
-            { section: "alliance", target: 'alliance', title: "11d. Aceptar y hacer un contrato 🛬",
-              text: "Puedes aceptar un contrato a cualquier aeropuerto sin límite de distancia, siempre que tengas al menos un remolque Tank JetA1 libre y un conductor con carné Jet A-1. Antes de aceptar, el juego te avisa del plazo y los riesgos. Cada jugador solo tiene UN contrato activo. Al aceptarlo, TODOS sus viajes se añaden a tu carpeta Pedidos → Aceptados: los despachas con tu flota cuando quieras. El viaje cuenta como entregado al descargar en el aeropuerto, y cobras el precio por km cuando el camión vuelve a base. Por cada viaje entregado, tu alianza recibe 1.000 € en el Fondo Privado. Estos pedidos NO se pueden cancelar. ⚠️ Si NO completas el contrato entero antes de la fecha máxima de entrega, se te penaliza con 5.000 € (puede dejarte en negativo o bancarrota): los pedidos no enviados desaparecen y los que estén en ruta se terminan y se cobran." },
-            { section: "finance", target: 'finance', title: "12. Subir de nivel ⭐",
-              text: "Para subir de nivel PAGAS una cantidad de dinero desde Finanzas (el dinero que ganas cumpliendo pedidos). Cuanto más alto el nivel, más caro. Al subir desbloqueas más camiones, más pedidos diarios y nuevas funciones. Tu nivel se ve en el panel superior y subes desde Finanzas." },
+            { section: "fleet", target: null, title: "11b. Remolque Jet A-1 y carné ✈️",
+              text: "Para contratos aeroportuarios necesitas un remolque 'Tank JetA1' (tienda de remolques) y conductores con el 'Carné Jet A-1' (5.000 €, 24h desde la ficha del conductor). Sin los dos no podrás aceptar viajes aeroportuarios." },
+            { section: "alliance", target: null, title: "11c. Contratos aeroportuarios 🛫",
+              text: "Dentro de Alianzas, el propietario construye la OFICINA AEROPORTUARIA (gratis). Una vez construida, tu alianza ve los contratos de Jet A-1 para aeropuertos reales de Europa. El primero que acepta se lo lleva. Cada contrato tiene varios viajes de 32.000 L y un plazo de 15 días." },
+            { section: "finance", target: null, title: "12. Subir de nivel ⭐",
+              text: "Para subir de nivel PAGAS desde Finanzas. Al subir desbloqueas más camiones, más pedidos diarios y nuevas funciones. Tu nivel se ve en el panel superior." },
             { section: "email", target: 'email', title: "13. Email y avisos ✉️",
               text: "Aquí llegan todos los avisos importantes: facturas, multas, cambios de fidelidad, repostajes, jubilaciones... Revísalo siempre, te informa de todo lo que pasa en tu empresa." },
             { section: null, target: null, title: "¡Listo para rodar! 🎉",
