@@ -16,68 +16,37 @@
   input { width: 100%; background: #0d1320; border: 1px solid #1f2a3a; color: #f5f7fa; padding: 10px 12px; border-radius: 6px; font-size: 14px; font-family: monospace; margin-bottom: 14px; }
   input:focus { outline: none; border-color: #ff7a1a; }
   button { background: #ff7a1a; color: #1a0e05; border: none; padding: 12px 24px; border-radius: 6px; font-weight: 700; font-size: 14px; cursor: pointer; width: 100%; margin-top: 4px; }
-  button:disabled { background: #3a3a3a; color: #666; cursor: not-allowed; }
   button.ghost { background: transparent; border: 1px solid #1f2a3a; color: #cbd5e1; margin-top: 8px; }
   .log { background: #060a10; border: 1px solid #1f2a3a; border-radius: 6px; padding: 14px; font-size: 12px; line-height: 1.8; min-height: 80px; white-space: pre-wrap; }
-  .ok { color: #4ade80; }
-  .err { color: #ff4d4d; }
-  .info { color: #5b9dff; }
-  .warn-txt { color: #e8a504; }
-  .trip-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #1f2a3a; font-size: 13px; }
-  .trip-row:last-child { border-bottom: none; }
-  .badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 700; }
-  .badge.done { background: #14532d; color: #4ade80; }
-  .badge.pending { background: #3a2000; color: #e8a504; }
-  .badge.failed { background: #3a0000; color: #ff4d4d; }
+  .ok { color: #4ade80; } .err { color: #ff4d4d; } .info { color: #5b9dff; } .warn-txt { color: #e8a504; }
   #loginSection, #mainSection { display: none; }
   #loginSection.show, #mainSection.show { display: block; }
 </style>
 </head>
 <body>
-
 <h1>⚙️ ECACH Admin — Fix Contrato Aeroportuario</h1>
-<p class="warn">⚠️ Herramienta temporal de uso único. Elimina este archivo después de usarlo.</p>
+<p class="warn">⚠️ Herramienta temporal. Elimina este archivo después de usarlo.</p>
 
-<!-- LOGIN -->
 <div id="loginSection" class="card">
-  <label>Email de administrador</label>
-  <input type="email" id="emailInput" value="nikelaitor@hotmail.com">
-  <label>Contraseña</label>
+  <label>Contraseña de admin</label>
   <input type="password" id="passInput" placeholder="Tu contraseña de Firebase">
   <button onclick="doLogin()">Entrar como admin</button>
-  <div class="log" id="loginLog" style="margin-top:12px">Esperando...</div>
+  <div class="log" id="loginLog">Esperando...</div>
 </div>
 
-<!-- MAIN -->
 <div id="mainSection">
-
   <div class="card">
     <label>UID del jugador afectado</label>
-    <input type="text" id="targetUid" placeholder="UID del jugador (ej: abc123xyz...)">
-    <button onclick="loadContracts()">🔍 Buscar contratos del jugador</button>
+    <input type="text" id="targetUid" value="91Y6Y9RRhjSsUEpVrFZUWCepnAI2">
+    <label>ID del contrato aeroportuario</label>
+    <input type="number" id="contractId" placeholder="Número ID del contrato (ej: 42)">
+    <button onclick="fixContract()">✅ Completar contrato y cancelar penalización</button>
+    <button class="ghost" onclick="findContract()">🔍 Buscar ID del contrato automáticamente</button>
   </div>
-
-  <div id="contractsSection" style="display:none">
-    <div class="card">
-      <label>Contratos encontrados</label>
-      <div id="contractsList"></div>
-    </div>
-
-    <div class="card" id="fixCard" style="display:none">
-      <label>ID del contrato a reparar</label>
-      <input type="text" id="contractIdInput" placeholder="ID numérico del contrato">
-      <label>Número de viajes TOTALES del contrato</label>
-      <input type="number" id="totalTrips" placeholder="ej: 6" min="1" max="20">
-      <button onclick="fixContract()">✅ Marcar todos los viajes como completados y cerrar contrato</button>
-      <button class="ghost" onclick="cancelPenalty()">🚫 Solo cancelar penalización (sin completar viajes)</button>
-    </div>
-  </div>
-
   <div class="card">
-    <label>Log de operaciones</label>
+    <label>Log</label>
     <div class="log" id="mainLog">Esperando acción...</div>
   </div>
-
 </div>
 
 <script>
@@ -89,219 +58,94 @@
     messagingSenderId: "795514188072",
     appId: "1:795514188072:web:c791a7b1f4dde88646a01d"
   });
-
   const auth = firebase.auth();
   const API = "https://ecachlogistic-production.up.railway.app";
-  let idToken = null;
-  let currentContracts = [];
 
-  function log(msg, type = "info", target = "mainLog") {
-    const el = document.getElementById(target);
-    const time = new Date().toLocaleTimeString("es-ES");
-    el.innerHTML += `<span class="${type}">[${time}] ${msg}</span>\n`;
+  function log(msg, type = "info") {
+    const el = document.getElementById("mainLog");
+    const t = new Date().toLocaleTimeString("es-ES");
+    el.innerHTML += `<span class="${type}">[${t}] ${msg}</span>\n`;
     el.scrollTop = el.scrollHeight;
   }
 
-  // Check if already logged in
   auth.onAuthStateChanged(user => {
     if (user) {
-      showMain(user);
+      document.getElementById("loginSection").classList.remove("show");
+      document.getElementById("mainSection").classList.add("show");
+      log(`✅ Autenticado como ${user.email}`, "ok");
     } else {
       document.getElementById("loginSection").classList.add("show");
     }
   });
 
   async function doLogin() {
-    const email = document.getElementById("emailInput").value.trim();
-    const pass = document.getElementById("passInput").value;
-    log("Iniciando sesión...", "info", "loginLog");
+    const el = document.getElementById("loginLog");
     try {
-      await auth.signInWithEmailAndPassword(email, pass);
-      log("✅ Login correcto", "ok", "loginLog");
-    } catch (e) {
-      log("❌ Error: " + e.message, "err", "loginLog");
+      await auth.signInWithEmailAndPassword("nikelaitor@hotmail.com", document.getElementById("passInput").value);
+      el.innerHTML = '<span class="ok">✅ Login correcto</span>';
+    } catch(e) {
+      el.innerHTML = `<span class="err">❌ ${e.message}</span>`;
     }
   }
 
-  async function showMain(user) {
-    document.getElementById("loginSection").classList.remove("show");
-    document.getElementById("mainSection").classList.add("show");
-    idToken = await user.getIdToken();
-    log(`✅ Autenticado como ${user.email}`, "ok");
-    log(`UID admin: ${user.uid}`, "info");
-  }
-
   async function getToken() {
-    const user = auth.currentUser;
-    if (!user) throw new Error("No autenticado");
-    return await user.getIdToken(true);
+    return await auth.currentUser.getIdToken(true);
   }
 
-  async function loadContracts() {
+  async function findContract() {
     const uid = document.getElementById("targetUid").value.trim();
-    if (!uid) { log("⚠️ Introduce el UID del jugador", "warn-txt"); return; }
-
-    log(`🔍 Buscando contratos para UID: ${uid}`, "info");
-
+    log(`🔍 Buscando contrato activo del jugador...`, "info");
     try {
-      idToken = await getToken();
-      // Llamamos al endpoint de contratos del jugador impersonando via admin
-      // Como el servidor valida por uid del token, usamos el endpoint de save para leer el estado
+      const token = await getToken();
       const res = await fetch(`${API}/api/airport-contracts`, {
-        headers: { "Authorization": "Bearer " + idToken }
+        headers: { "Authorization": "Bearer " + token }
       });
       const data = await res.json();
-
-      // El endpoint devuelve los contratos de la alianza del admin
-      // Necesitamos buscar en la BD directamente via un endpoint especial
-      // Usamos el endpoint de load del jugador afectado
-      const saveRes = await fetch(`${API}/api/load?uid=${encodeURIComponent(uid)}`, {
-        headers: { "Authorization": "Bearer " + idToken }
-      });
-
-      if (!saveRes.ok) {
-        log(`❌ No se pudo cargar el save del jugador (${saveRes.status})`, "err");
-        log("Prueba a introducir el ID del contrato manualmente abajo", "warn-txt");
-        document.getElementById("contractsSection").style.display = "block";
-        document.getElementById("fixCard").style.display = "block";
-        return;
+      const all = [...(data.available || []), ...(data.taken || [])];
+      const mine = all.filter(c => c.takenByUid === uid || c.taken_by_uid === uid);
+      if (mine.length === 0) {
+        log("⚠️ No se encontró contrato para ese UID en la respuesta. Introduce el ID manualmente.", "warn-txt");
+        log(`Contratos 'taken' totales: ${(data.taken||[]).length}`, "info");
+        (data.taken||[]).forEach(c => log(`  ID:${c.id} uid:${c.takenByUid||c.taken_by_uid} status:${c.status}`, "info"));
+      } else {
+        mine.forEach(c => {
+          document.getElementById("contractId").value = c.id;
+          log(`✅ Contrato encontrado: ID ${c.id} — ${c.airportName||c.airport_name} — estado: ${c.status}`, "ok");
+        });
       }
-
-      const saveData = await saveRes.json();
-      log(`✅ Save del jugador cargado. Empresa: ${saveData?.companyName || "—"}`, "ok");
-
-      // Buscar contratos aeroportuarios en el estado
-      const orders = saveData?.orders || [];
-      const airportOrders = orders.filter(o => o.airportContractId || o.type === "airport");
-      log(`📋 Pedidos aeroportuarios en save: ${airportOrders.length}`, "info");
-
-      // Mostrar contratos de la alianza que incluyan al jugador
-      const taken = (data.taken || []).filter(c =>
-        c.takenByUid === uid || String(c.takenByUid) === String(uid)
-      );
-      const allTaken = data.taken || [];
-
-      log(`📋 Contratos en estado 'taken/failed': ${allTaken.length} total`, "info");
-
-      let html = "";
-      allTaken.forEach(c => {
-        const trips = c.tripsState || [];
-        const done = trips.filter(t => t.status === "done").length;
-        const total = trips.length;
-        const isTarget = c.takenByUid === uid;
-        html += `<div class="trip-row" style="${isTarget ? 'background:#1a1000;border-radius:6px;padding:8px' : ''}">
-          <span>${isTarget ? "👉" : "·"}</span>
-          <span><strong>ID: ${c.id}</strong> — ${c.airportName || c.airport_name || "?"}</span>
-          <span class="badge ${c.status === 'taken' ? 'pending' : c.status === 'completed' ? 'done' : 'failed'}">${c.status}</span>
-          <span>${done}/${total} viajes</span>
-          ${isTarget ? '<span class="ok">← ESTE JUGADOR</span>' : ''}
-        </div>`;
-      });
-
-      if (!html) {
-        html = '<p style="color:#6b7a91;font-size:13px">No se encontraron contratos tomados. Introduce el ID manualmente.</p>';
-      }
-
-      document.getElementById("contractsList").innerHTML = html;
-      document.getElementById("contractsSection").style.display = "block";
-      document.getElementById("fixCard").style.display = "block";
-
-      // Auto-rellenar si hay uno del jugador
-      const myContract = allTaken.find(c => c.takenByUid === uid);
-      if (myContract) {
-        document.getElementById("contractIdInput").value = myContract.id;
-        document.getElementById("totalTrips").value = (myContract.tripsState || []).length || 6;
-        log(`✅ Contrato del jugador encontrado: ID ${myContract.id} — ${(myContract.tripsState||[]).filter(t=>t.status==='done').length}/${(myContract.tripsState||[]).length} viajes`, "ok");
-      }
-
-    } catch (e) {
+    } catch(e) {
       log("❌ Error: " + e.message, "err");
-      document.getElementById("contractsSection").style.display = "block";
-      document.getElementById("fixCard").style.display = "block";
     }
   }
 
   async function fixContract() {
-    const contractId = document.getElementById("contractIdInput").value.trim();
-    const totalTrips = parseInt(document.getElementById("totalTrips").value) || 6;
     const uid = document.getElementById("targetUid").value.trim();
-
+    const contractId = document.getElementById("contractId").value.trim();
     if (!contractId) { log("⚠️ Introduce el ID del contrato", "warn-txt"); return; }
 
-    log(`🔧 Iniciando reparación del contrato ${contractId}...`, "info");
-    log(`   Viajes a completar: ${totalTrips}`, "info");
-
+    log(`🔧 Reparando contrato ${contractId} para UID ${uid}...`, "info");
     try {
-      idToken = await getToken();
-
-      // Marcar cada viaje como done usando el endpoint existente
-      let ok = 0, fail = 0;
-      for (let i = 0; i < totalTrips; i++) {
-        try {
-          const res = await fetch(`${API}/api/airport-contracts/${contractId}/trip`, {
-            method: "POST",
-            headers: {
-              "Authorization": "Bearer " + idToken,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ tripN: i, state: "done", uid_override: uid })
-          });
-          const data = await res.json();
-          if (res.ok) {
-            log(`  ✅ Viaje ${i + 1}/${totalTrips} marcado como completado`, "ok");
-            ok++;
-          } else {
-            log(`  ⚠️ Viaje ${i + 1}: ${data.error || res.status}`, "warn-txt");
-            fail++;
-          }
-        } catch (e) {
-          log(`  ❌ Viaje ${i + 1} error: ${e.message}`, "err");
-          fail++;
-        }
-        // Pequeña pausa para no saturar el servidor
-        await new Promise(r => setTimeout(r, 300));
-      }
-
-      log(``, "info");
-      log(`📊 Resultado: ${ok} viajes completados, ${fail} con error`, ok > 0 ? "ok" : "err");
-
-      if (ok > 0) {
-        // Cancelar penalización por si acaso
-        await cancelPenaltyForContract(contractId);
-        log(`✅ Contrato ${contractId} reparado correctamente`, "ok");
-        log(`   El jugador ya no recibirá la penalización de 5.000€`, "ok");
-      }
-
-    } catch (e) {
-      log("❌ Error general: " + e.message, "err");
-    }
-  }
-
-  async function cancelPenalty() {
-    const contractId = document.getElementById("contractIdInput").value.trim();
-    if (!contractId) { log("⚠️ Introduce el ID del contrato", "warn-txt"); return; }
-    await cancelPenaltyForContract(contractId);
-  }
-
-  async function cancelPenaltyForContract(contractId) {
-    log(`🚫 Cancelando penalización del contrato ${contractId}...`, "info");
-    try {
-      idToken = await getToken();
-      const res = await fetch(`${API}/api/airport-contracts/${contractId}/ack-penalty`, {
+      const token = await getToken();
+      const res = await fetch(`${API}/api/admin/fix-airport-contract`, {
         method: "POST",
-        headers: {
-          "Authorization": "Bearer " + idToken,
-          "Content-Type": "application/json"
-        }
+        headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
+        body: JSON.stringify({ contractId: parseInt(contractId), targetUid: uid })
       });
-      if (res.ok) {
-        log(`✅ Penalización de 5.000€ cancelada`, "ok");
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        log(`✅ CONTRATO REPARADO CORRECTAMENTE`, "ok");
+        log(`   Total viajes: ${data.tripsFixed}`, "ok");
+        log(`   Ya estaban completados: ${data.alreadyDone}`, "ok");
+        log(`   Nuevamente completados: ${data.newlyFixed}`, "ok");
+        log(`   Penalización de 5.000€: CANCELADA`, "ok");
+        log(``, "info");
+        log(`El jugador ya puede continuar sin penalización.`, "ok");
       } else {
-        const d = await res.json().catch(() => ({}));
-        log(`⚠️ ack-penalty: ${d.error || res.status} (puede que no hubiera penalización pendiente)`, "warn-txt");
+        log(`❌ Error del servidor: ${data.error || JSON.stringify(data)}`, "err");
+        if (data.owner) log(`   El contrato pertenece a uid: ${data.owner}`, "warn-txt");
       }
-    } catch (e) {
-      log("❌ Error cancelando penalización: " + e.message, "err");
+    } catch(e) {
+      log("❌ Error: " + e.message, "err");
     }
   }
 </script>
