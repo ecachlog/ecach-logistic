@@ -10591,11 +10591,14 @@
                 html += others.map(c => {
                     const trips = c.tripsState || [];
                     const done = trips.filter(t => t.status === "done").length;
+                    const isAdmin = fbUser && fbUser.email === ADMIN_EMAIL;
+                    const adminBtn = isAdmin ? `<div style="margin-top:6px"><button class="danger small" data-action="admin-fix-airport-contract" data-id="${c.id}" data-uid="${c.takenByUid}" data-trips="${c.trips}">🔧 Admin: completar contrato (${done}/${c.trips} viajes)</button></div>` : "";
                     return `<div class="card" style="margin:0;border-color:#4b9fe7;background:rgba(75,159,231,.06)">
                         <strong>🛬 ${c.airport.name}</strong> <span class="muted" style="font-size:11px">· ${c.airport.city}</span><br>
                         <span class="muted" style="font-size:12px">Aceptado por <strong>${c.takenByCompany || "un compañero"}</strong></span><br>
                         <span class="muted" style="font-size:12px">${done}/${c.trips} viajes entregados · ${c.pricePerKm.toFixed(2)} €/km</span><br>
                         <span class="muted" style="font-size:11px">⏰ Plazo: ${fmtDate(c.deadlineAt)}</span>
+                        ${adminBtn}
                     </div>`;
                 }).join("");
                 html += `</div>`;
@@ -11045,6 +11048,21 @@
                 renderAll(); drawMap(true);
             } catch (e) {
                 notify("Error", e.message.includes("forbidden") ? "Solo el administrador puede mover gasolineras." : e.message, "danger", true);
+            }
+        }
+
+        async function adminFixAirportContract(contractId, targetUid, totalTrips) {
+            if (!confirm(`🔧 ADMIN: ¿Marcar TODOS los viajes del contrato #${contractId} como completados y cancelar la penalización de 5.000€?\n\nEsto dará el contrato por finalizado correctamente para el jugador.\n\n¿Confirmar?`)) return;
+            try {
+                const r = await apiCall("POST", "/api/admin/fix-airport-contract", { contractId, targetUid, totalTrips });
+                if (r.ok) {
+                    notify("Contrato reparado", `Contrato #${contractId} completado. ${r.newlyFixed} viajes nuevos marcados como entregados. Penalización cancelada.`, "ok", true);
+                    loadAirportContracts();
+                } else {
+                    notify("Error", r.error || "Error desconocido", "warn", true);
+                }
+            } catch(e) {
+                notify("Error", e.message, "warn", true);
             }
         }
 
@@ -11560,6 +11578,7 @@
             if (action === "gas-build-expansion") return buildGasExpansion(parseInt(btn.dataset.id, 10), btn.dataset.exp);
             if (action === "gas-admin-clear") return adminClearGasOrders(parseInt(btn.dataset.id, 10), btn.dataset.name);
             if (action === "gas-admin-move") return startMoveGasStation(parseInt(btn.dataset.id, 10), btn.dataset.name);
+            if (action === "admin-fix-airport-contract") return adminFixAirportContract(parseInt(btn.dataset.id, 10), btn.dataset.uid, parseInt(btn.dataset.trips, 10));
             if (action === "alliance-toggle-block") return toggleBlockMember(btn.dataset.uid, btn.dataset.name, btn.dataset.blocked === "true");
             if (action === "toggle-tachograph-consult") {
                 const box = document.getElementById("tachographConsultBox");
