@@ -37,12 +37,16 @@
 <div id="mainSection">
   <div class="card">
     <label>UID del jugador afectado</label>
-    <input type="text" id="targetUid" value="91Y6Y9RRhjSsUEpVrFZUWCepnAI2">
-    <label>ID del contrato aeroportuario</label>
-    <input type="number" id="contractId" placeholder="Número ID del contrato (ej: 42)">
-    <button onclick="fixContract()">✅ Completar contrato y cancelar penalización</button>
-    <button class="ghost" onclick="findContract()">🔍 Buscar ID del contrato automáticamente</button>
+    <input type="text" id="targetUid" placeholder="UID del jugador">
+    <button class="ghost" onclick="findContract()">🔍 Buscar contratos del jugador</button>
   </div>
+
+  <div class="card">
+    <label>ID del contrato a reparar (se rellena solo al buscar)</label>
+    <input type="number" id="contractId" placeholder="Número ID del contrato">
+    <button onclick="fixContract()">✅ Completar contrato y cancelar penalización</button>
+  </div>
+
   <div class="card">
     <label>Log</label>
     <div class="log" id="mainLog">Esperando acción...</div>
@@ -94,25 +98,34 @@
 
   async function findContract() {
     const uid = document.getElementById("targetUid").value.trim();
-    log(`🔍 Buscando contrato activo del jugador...`, "info");
+    if (!uid) { log("⚠️ Introduce el UID del jugador", "warn-txt"); return; }
+    log(`🔍 Buscando contratos para UID: ${uid}`, "info");
     try {
       const token = await getToken();
-      const res = await fetch(`${API}/api/airport-contracts`, {
+      const res = await fetch(`${API}/api/admin/contracts-by-uid/${encodeURIComponent(uid)}`, {
         headers: { "Authorization": "Bearer " + token }
       });
       const data = await res.json();
-      const all = [...(data.available || []), ...(data.taken || [])];
-      const mine = all.filter(c => c.takenByUid === uid || c.taken_by_uid === uid);
-      if (mine.length === 0) {
-        log("⚠️ No se encontró contrato para ese UID en la respuesta. Introduce el ID manualmente.", "warn-txt");
-        log(`Contratos 'taken' totales: ${(data.taken||[]).length}`, "info");
-        (data.taken||[]).forEach(c => log(`  ID:${c.id} uid:${c.takenByUid||c.taken_by_uid} status:${c.status}`, "info"));
-      } else {
-        mine.forEach(c => {
-          document.getElementById("contractId").value = c.id;
-          log(`✅ Contrato encontrado: ID ${c.id} — ${c.airportName||c.airport_name} — estado: ${c.status}`, "ok");
-        });
+      if (!res.ok) { log(`❌ Error: ${data.error}`, "err"); return; }
+      const contracts = data.contracts || [];
+      if (contracts.length === 0) {
+        log("⚠️ No se encontraron contratos para ese UID.", "warn-txt");
+        log("Comprueba que el UID es correcto.", "warn-txt");
+        return;
       }
+      log(`✅ ${contracts.length} contrato(s) encontrado(s):`, "ok");
+      contracts.forEach(c => {
+        let trips = [];
+        try { trips = JSON.parse(c.trips_json || "[]"); } catch(e) {}
+        const done = trips.filter(t => t.status === "done").length;
+        const total = c.trips || trips.length;
+        log(`  ID: ${c.id} | ${c.airport_name} (${c.airport_city}) | estado: ${c.status} | viajes: ${done}/${total} | penalización: ${c.penalty_pending ? "SÍ ⚠️" : "no"}`, c.status === "taken" || c.status === "failed" ? "warn-txt" : "info");
+        // Auto-rellenar el contrato más relevante (taken o failed)
+        if (c.status === "taken" || c.status === "failed") {
+          document.getElementById("contractId").value = c.id;
+          log(`  → ID ${c.id} autoseleccionado para reparar`, "ok");
+        }
+      });
     } catch(e) {
       log("❌ Error: " + e.message, "err");
     }
@@ -121,8 +134,7 @@
   async function fixContract() {
     const uid = document.getElementById("targetUid").value.trim();
     const contractId = document.getElementById("contractId").value.trim();
-    if (!contractId) { log("⚠️ Introduce el ID del contrato", "warn-txt"); return; }
-
+    if (!uid || !contractId) { log("⚠️ Rellena el UID y el ID del contrato", "warn-txt"); return; }
     log(`🔧 Reparando contrato ${contractId} para UID ${uid}...`, "info");
     try {
       const token = await getToken();
@@ -134,14 +146,12 @@
       const data = await res.json();
       if (res.ok && data.ok) {
         log(`✅ CONTRATO REPARADO CORRECTAMENTE`, "ok");
-        log(`   Total viajes: ${data.tripsFixed}`, "ok");
-        log(`   Ya estaban completados: ${data.alreadyDone}`, "ok");
-        log(`   Nuevamente completados: ${data.newlyFixed}`, "ok");
-        log(`   Penalización de 5.000€: CANCELADA`, "ok");
-        log(``, "info");
-        log(`El jugador ya puede continuar sin penalización.`, "ok");
+        log(`   Viajes totales: ${data.tripsFixed}`, "ok");
+        log(`   Ya completados antes: ${data.alreadyDone}`, "ok");
+        log(`   Completados ahora: ${data.newlyFixed}`, "ok");
+        log(`   Penalización 5.000€: CANCELADA ✅`, "ok");
       } else {
-        log(`❌ Error del servidor: ${data.error || JSON.stringify(data)}`, "err");
+        log(`❌ Error: ${data.error || JSON.stringify(data)}`, "err");
         if (data.owner) log(`   El contrato pertenece a uid: ${data.owner}`, "warn-txt");
       }
     } catch(e) {
