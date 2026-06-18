@@ -8435,7 +8435,7 @@
                             <p style="margin:4px 0">Saldo acumulado: <strong class="${gs.balance < 0 ? "danger-text" : "ok-text"}">${fmtMoney4(gs.balance)}</strong> <span class="muted" style="font-size:11px">(0,02€/L vendido)</span></p>
                             ${expansionsLine}
                             ${ownerBtns}
-                            ${(fbUser && fbUser.email === ADMIN_EMAIL) ? `<div class="row" style="margin-top:6px;gap:6px;flex-wrap:wrap"><button class="danger small" data-action="gas-admin-clear" data-id="${gs.id}" data-name="${(gs.name||"").replace(/"/g,"")}">🔧 Admin: limpiar pedidos</button><button class="ghost small" data-action="gas-admin-move" data-id="${gs.id}" data-name="${(gs.name||"").replace(/"/g,"")}">🔧 Admin: mover</button></div>` : ""}
+                            
                         </div>`;
                     }).join("")}</div>`;
                 }
@@ -10591,14 +10591,11 @@
                 html += others.map(c => {
                     const trips = c.tripsState || [];
                     const done = trips.filter(t => t.status === "done").length;
-                    const isAdmin = fbUser && fbUser.email === ADMIN_EMAIL;
-                    const adminBtn = isAdmin ? `<div style="margin-top:6px"><button class="danger small" data-action="admin-fix-airport-contract" data-id="${c.id}" data-uid="${c.takenByUid}" data-trips="${c.trips}">🔧 Admin: completar contrato (${done}/${c.trips} viajes)</button></div>` : "";
                     return `<div class="card" style="margin:0;border-color:#4b9fe7;background:rgba(75,159,231,.06)">
                         <strong>🛬 ${c.airport.name}</strong> <span class="muted" style="font-size:11px">· ${c.airport.city}</span><br>
                         <span class="muted" style="font-size:12px">Aceptado por <strong>${c.takenByCompany || "un compañero"}</strong></span><br>
                         <span class="muted" style="font-size:12px">${done}/${c.trips} viajes entregados · ${c.pricePerKm.toFixed(2)} €/km</span><br>
                         <span class="muted" style="font-size:11px">⏰ Plazo: ${fmtDate(c.deadlineAt)}</span>
-                        ${adminBtn}
                     </div>`;
                 }).join("");
                 html += `</div>`;
