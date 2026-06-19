@@ -7203,7 +7203,7 @@
             const dailyTotal = Object.values(dailyBilling).reduce((s, d) => s + d.total, 0);
             const dailyBillingCard = `<div class="card"><h3>📅 Facturación diaria (últimos 7 días)</h3><p class="muted" style="font-size:12px">Suma de los pedidos completados ese día (facturación bruta, aún sin cobrar todas).</p><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="color:var(--muted);text-align:left;border-bottom:1px solid var(--line)"><th style="padding:6px 8px">Día</th><th style="padding:6px 8px">Viajes</th><th style="padding:6px 8px">Facturado</th></tr></thead><tbody>${dailyRows}</tbody><tfoot><tr style="border-top:2px solid var(--line);font-weight:700"><td style="padding:6px 8px">Total 7 días</td><td class="mono" style="padding:6px 8px">${Object.values(dailyBilling).reduce((s, d) => s + d.count, 0)}</td><td class="mono ok-text" style="padding:6px 8px">${fmtMoney(dailyTotal)}</td></tr></tfoot></table></div></div>`;
             $("financeContent").innerHTML = `
-            <div class="metrics">${metricHtml("Saldo actual", fmtMoney(state.bank.balance), "🏦")}${metricHtml("Nivel empresa", state.level, "🏢")}${metricHtml("Facturas pendientes cobro", fmtMoney(pendingOut.reduce((s,i)=>s+i.amount,0)), "🧾")}${metricHtml("Facturas pendientes pago", fmtMoney(pendingIn.reduce((s,i)=>s+i.amount,0)), "📥")}</div>
+            <div class="metrics">${metricHtml("Saldo actual", fmtMoney(state.bank.balance), "🏦")}${metricHtml("Nivel empresa", state.level, "🏢")}${metricHtml("Cobros pendientes", fmtMoney(pendingOut.filter(i=>i.status==="pending").reduce((s,i)=>s+i.amount,0)), "🧾")}${pendingOut.some(i=>i.status==="overdue") ? metricHtml("Morosos pendientes", fmtMoney(pendingOut.filter(i=>i.status==="overdue"||i.status==="claimed").reduce((s,i)=>s+i.amount,0)), "⚠️") : ""}${metricHtml("Facturas pendientes pago", fmtMoney(pendingIn.reduce((s,i)=>s+i.amount,0)), "📥")}</div>
             <p class="muted" style="margin-bottom:12px">Todos los gastos recurrentes se cobran 1 mes después de su contratación. Consulta el <strong>Calendario financiero</strong> para ver qué se cobra cada día.</p>
             ${bankPanelHtml}
             <div class="card"><h3>Subir nivel</h3><p>Nivel ${state.level} → Nivel ${state.level+1} · Coste: <span class="mono orange">${fmtMoney(upgradeCost)}</span> · Pedidos máximos: <span class="badge ok">${orderLimitForLevel(state.level+1)}</span></p><button class="primary" data-action="upgrade-level" ${state.bank.balance < upgradeCost ? "disabled" : ""}>Pagar subida de nivel</button></div>
@@ -7278,6 +7278,25 @@
                 addDay(i.autoPayAt || i.dueAt, `Factura: ${i.provider} · ${i.category}`, i.amount));
             state.invoicesIssued.filter(i => i.status === "pending").forEach(i =>
                 addDay(i.dueAt, `Cobro cliente: ${i.clientName}${i.orderId ? ` · Pedido #${shortId(i.orderId)}` : ""}`, i.amount, "income"));
+            // Overdue invoices — show programmed recovery dates in calendar
+            state.invoicesIssued.filter(i => i.status === "overdue" || i.status === "claimed").forEach(i => {
+                // Amistosa: claimPayAt set when reclaimed
+                if (i.status === "claimed" && i.claimPayAt) {
+                    addDay(i.claimPayAt, `⚠️ Cobro moroso (amistosa): ${i.clientName}${i.orderId ? ` · #${shortId(i.orderId)}` : ""}`, i.amount, "income");
+                }
+                // Burofax: burofaxPayAt set when burofax will pay
+                if (i.burofaxSent && i.burofaxWillPay && i.burofaxPayAt) {
+                    addDay(i.burofaxPayAt, `📮 Cobro moroso (burofax): ${i.clientName}${i.orderId ? ` · #${shortId(i.orderId)}` : ""}`, i.amount, "income");
+                }
+                // Judicial: immediate, show as today if recently filed
+                if (i.legalClaimed && i.legalClaimedAt && !i.burofaxWillPay) {
+                    addDay(i.legalClaimedAt + 3600000, `⚖️ Cobro judicial: ${i.clientName}${i.orderId ? ` · #${shortId(i.orderId)}` : ""}`, Math.round(i.amount * 1.2), "income");
+                }
+                // Overdue with no action yet — show as pending in calendar
+                if (i.status === "overdue" && !i.morosoClaimed && !i.burofaxSent && !i.legalClaimed) {
+                    addDay(i.dueAt, `🔴 Impagada sin reclamar: ${i.clientName}${i.orderId ? ` · #${shortId(i.orderId)}` : ""} — ve a Finanzas → Facturas`, i.amount, "income");
+                }
+            });
             const sortedKeys = Object.keys(days).sort();
             if (!sortedKeys.length) { $("financeContent").innerHTML = `<p class="muted">No hay pagos ni cobros previstos próximamente.</p>`; return; }
             const rows = sortedKeys.map(key => {
@@ -7303,7 +7322,11 @@
             const paid = [...state.invoicesIssued.filter(i => i.status === "paid"), ...state.invoicesReceived.filter(i => i.status === "paid")].sort((a,b) => (b.paidAt||b.issuedAt)-(a.paidAt||a.issuedAt)).slice(0, 25);
             $("financeContent").innerHTML = `
             <h3>Facturas emitidas — pendientes de cobro</h3>
-            <div class="cards">${pendingOut.map(invoiceOutCard).join("") || `<p class="muted">No hay facturas emitidas pendientes.</p>`}</div>
+            <div class="cards">${pendingOut.filter(i=>i.status==="pending").map(invoiceOutCard).join("") || `<p class="muted">No hay facturas pendientes de cobro.</p>`}</div>
+            ${pendingOut.some(i=>i.status==="overdue"||i.status==="claimed") ? `
+            <h3 style="margin-top:16px;color:#ff4d4d">⚠️ Clientes morosos — facturas impagadas</h3>
+            <p class="muted" style="font-size:13px;margin-bottom:10px">Estas facturas han vencido sin cobro. Reclámalas para recuperarlas. Su importe <strong>se suma al total de cobros pendientes</strong> hasta que se cobren o se descarten.</p>
+            <div class="cards">${pendingOut.filter(i=>i.status==="overdue"||i.status==="claimed").map(invoiceOutCard).join("")}</div>` : ""}
             <h3>Facturas recibidas — pendientes de pago</h3>
             <div class="row" style="margin-bottom:10px"><button class="primary small" data-action="pay-selected-invoices">Pagar facturas seleccionadas</button></div>
             <div class="cards">${pendingIn.map(invoiceInCard).join("") || `<p class="muted">No hay facturas recibidas pendientes.</p>`}</div>
