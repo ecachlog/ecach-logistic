@@ -8561,15 +8561,10 @@
                         const statusLine = unloaded
                             ? `<span style="color:#35c759;font-weight:600">✅ Descargado, volviendo a su base</span> · <strong>${o.takenByCompany || "un compañero"}</strong>`
                             : `Lo está llevando: <strong>${o.takenByCompany || "un compañero"}</strong>`;
-                        const isMyOrder = o.takenByUid === fbUser?.uid;
-                        const adminCancelBtn = (fbUser && fbUser.email === "nikelaitor@hotmail.com" && isMyOrder && !unloaded)
-                            ? `<div style="margin-top:6px"><button class="danger small" data-action="admin-cancel-gas-trip" data-orderid="${o.id}">🗑️ Admin: cancelar viaje fantasma</button></div>`
-                            : "";
                         return `
                         <div class="card" style="margin:0;border-color:${unloaded ? "#35c759" : "#4b9fe7"};background:${unloaded ? "rgba(53,199,89,.06)" : "rgba(75,159,231,.06)"}">
                             <strong>⛽ ${stationName(o.stationId)}</strong> <span class="muted" style="font-size:11px">· Pedido #${o.id}</span><br>
                             <span class="muted" style="font-size:12px">${fmtLiters(o.liters)} · ${statusLine}</span>
-                            ${adminCancelBtn}
                         </div>`;
                     }).join("")}</div></div>`;
                 }
@@ -11864,19 +11859,6 @@
             if (action === "change-tires") showTireChangeOptions(id);
             if (action === "tire-change-confirm") changeTires(btn.dataset.vehicle, btn.dataset.mode);
             if (action === "pass-itv") passItv(id, btn.dataset.kind);
-            if (action === "admin-cancel-gas-trip") {
-                const orderId = parseInt(btn.dataset.orderid, 10);
-                if (!confirm(`¿Cancelar el pedido de gasolinera #${orderId} que aparece "en curso" pero no se está llevando realmente?`)) return;
-                try {
-                    await apiCall("POST", `/api/gas-stations/orders/${orderId}/cancel-trip`, {});
-                    notify("✅ Viaje cancelado", `Pedido #${orderId} liberado. Vuelve a aparecer como disponible para cualquier miembro.`, "ok", true);
-                    if (typeof loadGasStations === "function") loadGasStations();
-                } catch(e) {
-                    // If endpoint doesn't exist, try a local fix
-                    notify("⚠️ No se pudo cancelar via servidor", "Usa el botón 🧹 Limpiar viajes fantasma en Finanzas → Cuenta.", "warn", true);
-                }
-                return;
-            }
             if (action === "admin-fix-ghost-trips") {
                 // Remove trips from activeTrips that have no real truck or are stuck in "en uso" with no match
                 const before = (state.activeTrips || []).length;
