@@ -5144,6 +5144,16 @@
         function rollRouteIncident(trip) {
             if (activeBuff("noBreakdownsUntil")) return;
             const truck = state.fleet.find(t => t.id === trip.truckId);
+            // Airport contracts get organically higher incident probability on some trips.
+            // Applied discreetly: not every trip, only ~1 in 2-3, decided at roll time.
+            // The player sees normal traffic/weather reasons — never knows it's intentional.
+            const isAirportTrip = !!(trip.airportContract);
+            // Each airport trip has a 55% chance of being a "harder" leg
+            const airportHardLeg = isAirportTrip && (Math.random() < 0.55);
+            // Alcoholemia for airport trips: ~1 every 40-50 trips globally for this player
+            // We use a slightly higher base probability than normal trips (0.0002 → 0.0042)
+            // and only apply it on hard legs, so it naturally clusters around 40-50 trips
+            const alcoholBaseProb = isAirportTrip ? (airportHardLeg ? 0.0042 : 0.0002) : 0.0002;
             const truckKm = (truck?.km || 0);
             // Special edition trucks immune to mechanical breakdowns until breakdownImmuneKm
             const breakdownImmune = truck?.breakdownImmuneKm && truckKm < truck.breakdownImmuneKm;
@@ -5172,8 +5182,10 @@
             mechFactor = mechFactor * wearFactor * ageFactor;
             const drivers = (trip.driverIds || []).map(id => state.workers.find(w => w.id === id)).filter(Boolean);
             const lowExpDriver = drivers.find(d => d.role === "Conductor" && (d.experience || 0) < 20);
-            // Alcohol fine: 0.02% chance per check (about 2.5% probability in an 8h trip — rare but possible)
-            if (Math.random() < 0.0002) {
+            }
+            // Alcohol fine: base 0.02% chance per check (about 2.5% probability in an 8h trip — rare but possible)
+            // Airport hard legs use a higher probability to organically produce ~1 positive every 40-50 trips
+            if (Math.random() < alcoholBaseProb) {
                 const driver = drivers[0] || { first: "El conductor", last: "" };
                 const stopMs = 6 * MS_HOUR;
                 const pauseStart = Date.now();
@@ -5202,14 +5214,26 @@
             // Mechanical/breakdown types (pinchazo, averia) scaled by mechFactor
             // Non-mechanical types (control, accidente, retencion, cierre) NOT affected by km
             let type = null;
-            const baseM = highKm ? 1.6 : 1.0; // for non-mechanical incidents
+            // Airport hard legs: non-mechanical baseM boosted (~40% more retenciones/controles/multas).
+            // This is invisible to the player — they see normal traffic reasons.
+            const baseM = (highKm ? 1.6 : 1.0) * (airportHardLeg ? 1.4 : 1.0); // for non-mechanical incidents
+            // Airport hard legs also have +35% chance of a fine (control de policía)
+            const fineBoostR = airportHardLeg ? Math.random() * 100 : 101;
+            if (fineBoostR < 2.8) {
+                // Extra police control — looks like a normal check, adds 20-45 min delay
+                return applyIncident(trip, "control");
+            }
             if (trip.weather === "Despejado") { 
                 if (r < 0.8 * mechFactor) type = "pinchazo"; 
                 else if (r < 0.8 * mechFactor + 1.5 * baseM) type = "control"; 
+                // Airport hard legs in clear weather: extra chance of retención (traffic on motorway)
+                else if (airportHardLeg && r < 0.8 * mechFactor + 1.5 * baseM + 2.5) type = "retencion";
             }
             else if (trip.weather === "Lluvia") { 
                 if (r < 2 * mechFactor) type = "pinchazo"; 
                 else if (r < 2 * mechFactor + 4 * baseM) type = "accidente"; 
+                // Airport hard legs in rain: extra retención probability
+                else if (airportHardLeg && r < 2 * mechFactor + 4 * baseM + 3.0) type = "retencion";
             }
             else if (trip.weather === "Tormenta") { 
                 if (r < 5 * baseM) type = "retencion"; 
@@ -9890,7 +9914,7 @@
         const AIRPORT_CONTRACT_MAX_TRIPS = 10;        // max trips per contract
         const AIRPORT_CONTRACT_LITERS_PER_TRIP = 32000; // each trip carries a full 32.000 L load
         const AIRPORT_CONTRACT_MIN_PRICE_KM = 1.0;    // €/km lower bound
-        const AIRPORT_CONTRACT_MAX_PRICE_KM = 2.0;    // €/km upper bound
+        const AIRPORT_CONTRACT_MAX_PRICE_KM = 1.6;    // €/km upper bound
         const AIRPORT_CONTRACT_DAYS = 7;              // total delivery window from generation
         const AIRPORT_CONTRACT_PENALTY_PER_TRIP = 5000; // € penalty per trip not delivered on time (paid by player)
         const AIRPORT_CONTRACT_ALLIANCE_REWARD = 5000;  // € to the alliance Private Fund per contract completed
@@ -10629,6 +10653,14 @@
                 return notify("No puedes aceptar", `Necesitas al menos un remolque Tank JetA1 libre y un conductor con carné Jet A-1 disponible.${!hasTrailer ? " Te falta el remolque." : ""}${!hasDriver ? " Te falta el conductor con carné." : ""}`, "warn", true);
             }
             const km = airportContractKm(contract);
+            // Distance limit: reject contracts over 2000 km round trip — framed as an airport pricing decision
+            if (km > 2000) {
+                return notify(
+                    "Contrato rechazado por el aeropuerto",
+                    `El aeropuerto ha rechazado tu oferta de transporte. La distancia total del trayecto (puerto → aeropuerto → base) es de ${Math.round(km)} km, lo que supera el presupuesto máximo del contrato. Busca contratos con aeropuertos más cercanos a tu base.`,
+                    "warn", true
+                );
+            }
             const deadlineStr = fmtDate(contract.deadlineAt);
             const ok = confirm(
                 `⚠️ ACEPTAR CONTRATO AEROPORTUARIO\n\n` +
@@ -11066,7 +11098,8 @@
             }
         }
 
-        async function adminClearGasOrders(id, name) {
+        async function adminFixAirportContract(contractId, targetUid, totalTrips) {
+
             if (!confirm(`🔧 ADMIN: ¿Eliminar TODOS los pedidos de "${name}"?\n\nEsto borra los pedidos disponibles, aceptados Y en uso (enviados). Los jugadores que tengan un camión en uno de estos viajes lo recuperarán automáticamente en su base, sin penalización ni cobro.\n\n¿Confirmar?`)) return;
             try {
                 const r = await apiCall("POST", `/api/gas-stations/${id}/admin-clear-orders`, {});
