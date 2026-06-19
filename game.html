@@ -853,44 +853,6 @@
                             window._skipAutoCloudSave = false;
                         }
                     }
-                    // SAFETY: if server says "no save" but local has real progress,
-                    // treat it as a server error (Railway restarting) — do NOT wipe progress.
-                    // Only allow a true new game if local is also blank.
-                    const localJsonFinal = localStorage.getItem("ecach_logistic_save_v1");
-                    let localStateFinal = null;
-                    try { localStateFinal = localJsonFinal ? JSON.parse(localJsonFinal) : null; } catch(e) {}
-                    const localFinalBelongsToUser = localStateFinal && (!localStateFinal.ownerUid || localStateFinal.ownerUid === user.uid);
-                    const localFinalIsBlank = isBlankState(localStateFinal);
-                    if (localFinalBelongsToUser && !localFinalIsBlank) {
-                        // Server returned no save but local has progress — server is probably restarting.
-                        // Keep local, show warning, do NOT auto-save to cloud until server is stable.
-                        window._cloudCheckComplete = true;
-                        fbLoadComplete = true;
-                        window._skipAutoCloudSave = true; // block auto-save until we can verify server is OK
-                        if (typeof renderAccount === "function") renderAccount();
-                        if (typeof updateHeaderAuth === "function") updateHeaderAuth();
-                        if (typeof notify === "function") setTimeout(() => notify(
-                            "⚠️ Servidor no disponible temporalmente",
-                            "Se ha cargado tu partida local. El servidor puede estar reiniciando. Tu progreso está seguro — NO cierres el juego hasta que desaparezca este mensaje.",
-                            "warn", true
-                        ), 800);
-                        // Retry cloud load every 20s until server responds with real data
-                        let _retryCount = 0;
-                        const _retryInterval = setInterval(async () => {
-                            _retryCount++;
-                            if (_retryCount > 15) { clearInterval(_retryInterval); return; } // give up after 5 min
-                            try {
-                                const r2 = await apiCall("GET", "/api/save");
-                                if (r2 && r2.exists && r2.state) {
-                                    clearInterval(_retryInterval);
-                                    window._skipAutoCloudSave = false;
-                                    if (typeof notify === "function") notify("✅ Servidor reconectado", "Partida sincronizada con la nube.", "ok", true);
-                                    if (typeof fbSave === "function") { try { fbSave(true); } catch(e) {} }
-                                }
-                            } catch(e) { /* still down, keep retrying */ }
-                        }, 20000);
-                        return;
-                    }
                     window._cloudCheckComplete = true;
                     fbLoadComplete = true;
                     window._skipAutoCloudSave = false; // new user / no special case: allow cloud auto-save so they appear in ranking
@@ -8599,15 +8561,10 @@
                         const statusLine = unloaded
                             ? `<span style="color:#35c759;font-weight:600">✅ Descargado, volviendo a su base</span> · <strong>${o.takenByCompany || "un compañero"}</strong>`
                             : `Lo está llevando: <strong>${o.takenByCompany || "un compañero"}</strong>`;
-                        const isMyOrder = o.takenByUid === fbUser?.uid;
-                        const adminCancelBtn = (fbUser && fbUser.email === "nikelaitor@hotmail.com" && isMyOrder && !unloaded)
-                            ? `<div style="margin-top:6px"><button class="danger small" data-action="admin-cancel-gas-trip" data-orderid="${o.id}">🗑️ Admin: cancelar viaje fantasma</button></div>`
-                            : "";
                         return `
                         <div class="card" style="margin:0;border-color:${unloaded ? "#35c759" : "#4b9fe7"};background:${unloaded ? "rgba(53,199,89,.06)" : "rgba(75,159,231,.06)"}">
                             <strong>⛽ ${stationName(o.stationId)}</strong> <span class="muted" style="font-size:11px">· Pedido #${o.id}</span><br>
                             <span class="muted" style="font-size:12px">${fmtLiters(o.liters)} · ${statusLine}</span>
-                            ${adminCancelBtn}
                         </div>`;
                     }).join("")}</div></div>`;
                 }
@@ -11902,19 +11859,6 @@
             if (action === "change-tires") showTireChangeOptions(id);
             if (action === "tire-change-confirm") changeTires(btn.dataset.vehicle, btn.dataset.mode);
             if (action === "pass-itv") passItv(id, btn.dataset.kind);
-            if (action === "admin-cancel-gas-trip") {
-                const orderId = parseInt(btn.dataset.orderid, 10);
-                if (!confirm(`¿Cancelar el pedido de gasolinera #${orderId} que aparece "en curso" pero no se está llevando realmente?`)) return;
-                try {
-                    await apiCall("POST", `/api/gas-stations/orders/${orderId}/cancel-trip`, {});
-                    notify("✅ Viaje cancelado", `Pedido #${orderId} liberado. Vuelve a aparecer como disponible para cualquier miembro.`, "ok", true);
-                    if (typeof loadGasStations === "function") loadGasStations();
-                } catch(e) {
-                    // If endpoint doesn't exist, try a local fix
-                    notify("⚠️ No se pudo cancelar via servidor", "Usa el botón 🧹 Limpiar viajes fantasma en Finanzas → Cuenta.", "warn", true);
-                }
-                return;
-            }
             if (action === "admin-fix-ghost-trips") {
                 // Remove trips from activeTrips that have no real truck or are stuck in "en uso" with no match
                 const before = (state.activeTrips || []).length;
