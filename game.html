@@ -1431,7 +1431,7 @@
             ["6. Combustible y revisiones", "Los camiones repostan en la nave. Si falta gasoil se genera factura de ruta al precio actual. Las revisiones se hacen desde Flota → botón Revisión. Tu mecánico envía la factura de 500 € al acabar (aceite, filtros y revisión general) y el vehículo vuelve con desgaste 0%."],
             ["7. Remolques — tiempos de revisión", "El tiempo de revisión depende del precio del remolque:\n\n🐢 Spbitzer / Feldbindber (más baratas): 8 horas de revisión.\n⚙️ LBAG (precio intermedio): 4 horas de revisión.\n🚀 DuoBTank 64.000 L (más cara): 2 horas de revisión."],
             ["8. Finanzas y facturas", "Las facturas a clientes se cobran el día que vencen. Ninguna factura tiene vencimiento superior a 5 días. Los clientes morosos pueden retrasarse, pero siempre dentro de ese plazo máximo. Consulta saldo, gráficas y facturas en la sección Finanzas."],
-            ["8b. Clientes morosos — Cómo cobrar impagos", "Si una factura vence sin que el cliente pague (estado 'overdue'), tienes 3 opciones para reclamar el cobro:\n\n📋 RECLAMACIÓN AMISTOSA (Gratis):\n· Coste: 0€\n· Cobro: el cliente paga en menos de 10 días\n· Cuándo usarla: primer aviso, sin riesgo de coste\n\n📮 BUROFAX (30€):\n· Coste: 30€\n· Probabilidad de cobro: 50%\n· Plazo: 3 días\n· Si funciona, recibes el importe completo\n· Si NO funciona (50% probabilidad), pierdes los 30€ y debes escalar a judicial\n· Cuándo usarla: cliente no responde a reclamación amistosa\n\n⚖️ RECLAMACIÓN JUDICIAL (500€):\n· Coste: 500€\n· Cobro: INMEDIATO\n· Recuperas: deuda + 20% intereses\n· Cuándo usarla: cuando el burofax falla o no quieres arriesgarte. Es caro pero seguro.\n\nLos botones aparecen automáticamente en la factura impagada, dentro de Finanzas → Facturas emitidas. Cada acción pide confirmación con el coste y consecuencias antes de ejecutarse."],
+            ["8b. Clientes morosos — Cómo cobrar impagos", "Si una factura vence sin que el cliente pague (estado 'overdue'), tienes 3 opciones para reclamar el cobro:\n\n📋 RECLAMACIÓN AMISTOSA (Gratis):\n· Coste: 0€\n· Cobro: el cliente paga en menos de 10 días\n· Cuándo usarla: primer aviso, sin riesgo de coste\n\n📮 BUROFAX (30€):\n· Coste: 30€\n· Probabilidad de cobro: 50%\n· Plazo: 3 días\n· Si funciona, recibes el importe completo\n· Si NO funciona (50% probabilidad), pierdes los 30€ y debes escalar a judicial\n· Cuándo usarla: cliente no responde a reclamación amistosa\n\n⚖️ RECLAMACIÓN JUDICIAL (500€):\n· Coste: 500€ de honorarios legales\n· Cobro: en 24-48h (garantizado)\n· Recuperas: importe de la factura MENOS los 500€ de honorarios\n· Cuándo usarla: cuando necesitas cobrar rápido y la factura supera los 500€. No compensa en facturas pequeñas.\n\nLos botones aparecen automáticamente en la factura impagada, dentro de Finanzas → Facturas emitidas. Cada acción pide confirmación con el coste y consecuencias antes de ejecutarse."],
             ["9. Restricciones ADR", "Mercancías peligrosas no circulan domingos/festivos 08:00-22:00 ni vísperas desde las 15:00. Los autónomos tampoco pueden salir durante la prohibición ADR."],
             ["10. ITV cada 6 meses", "Cada 6 meses se debe pasar la ITV. Si el desgaste supera el 80%, la ITV no se aprueba y el vehículo queda parado hasta hacer la revisión."],
             ["11. Neumáticos cada 100.000 km", "Tractoras y remolques cambian ruedas a los 100.000 km. Aviso preventivo a los 90.000 km. Si compras un camión de segunda mano con las ruedas muy gastadas, te avisamos antes de comprarlo.\\n\\n🚛 TRACTORA (mismo precio sea renting o compra):\\n· Cambio urgente (1 hora): 3.000 €\\n· Cambio estándar (2 horas): 2.400 €\\nLa tractora Duo usa las mismas ruedas que una normal, así que cuesta lo mismo.\\n\\n🛢️ REMOLQUE / CISTERNA (una sola opción, 2 horas):\\n· Si es de RENTING: GRATIS (lo cubre la empresa de renting).\\n· Si es de COMPRA: 3.000 €.\\n· Remolque DUO: el doble de ruedas → el doble de precio. De renting sigue siendo GRATIS; de compra cuesta 6.000 €.\\n\\nDurante el cambio el vehículo queda parado el tiempo indicado."],
@@ -3253,7 +3253,9 @@
                 id: d.id,
                 dailyAvailable: Math.max(0, TACHO_DAILY_DRIVE_HOURS - (d.drivingToday || 0))
             }));
-            let activeIdx = 0;
+            // Start with the driver who has the most hours available (avoids Marc always going first)
+            let activeIdx = driverState.reduce((best, d, i) =>
+                d.dailyAvailable > driverState[best].dailyAvailable ? i : best, 0);
             const pushRest = (label, hours, atKm, dIdx) =>
                 schedule.push({ type: "rest", key: `rest-${schedule.length}`, label, durationMs: hours * MS_HOUR, atKm, driverIdx: dIdx });
 
@@ -4476,7 +4478,10 @@
 
             // Update tacho in real-time based on elapsed time since last update
             if (!trip.external) {
-                const lastUpdate = trip.lastTachoUpdateTs || now;
+                // IMPORTANT: if lastTachoUpdateTs is missing, fall back to trip.startTs (not now!)
+                // Using now as fallback would make rawElapsedHours = 0 and skip all processing,
+                // which causes conductors to never accumulate hours when the game was closed during the trip.
+                const lastUpdate = trip.lastTachoUpdateTs || trip.startTs || now;
                 const rawElapsedHours = (now - lastUpdate) / MS_HOUR;
                 trip.lastTachoUpdateTs = now;
                 
@@ -5720,7 +5725,7 @@
                     }
                 }
                 if (invoice.status === "overdue" && now >= invoice.dueAt + 7 * MS_DAY && !invoice.morosoNotice7 && !invoice.morosoAutoReclaimed) { invoice.morosoNotice7 = true; addEmail("cobros@ecachlogistic.eu", `Factura impagada 7 días ${shortId(invoice.id)}`, "Puedes enviar burofax (30 €) o reclamar judicialmente.", "invoice", invoice.id); notify("Factura impagada 7 días", "Opción de burofax disponible en Finanzas.", "warn", true); }
-                if (invoice.status === "overdue" && now >= invoice.dueAt + 15 * MS_DAY && !invoice.morosoNotice15 && !invoice.morosoAutoReclaimed) { invoice.morosoNotice15 = true; addEmail("legal@ecachlogistic.eu", `Reclamación judicial disponible ${shortId(invoice.id)}`, "Coste 500 €, recuperas deuda + intereses.", "legal", invoice.id); notify("Impago crítico", "Puedes reclamar judicialmente desde Finanzas.", "danger", true); }
+                if (invoice.status === "overdue" && now >= invoice.dueAt + 15 * MS_DAY && !invoice.morosoNotice15 && !invoice.morosoAutoReclaimed) { invoice.morosoNotice15 = true; addEmail("legal@ecachlogistic.eu", `Reclamación judicial disponible ${shortId(invoice.id)}`, `Coste 500 € de honorarios. Recuperas el importe de la factura menos los 500 €. Plazo: 24-48h garantizado. Solo compensa si la factura supera los 500 €.`, "legal", invoice.id); notify("Impago crítico", "Puedes reclamar judicialmente desde Finanzas.", "danger", true); }
             });
             state.invoicesReceived.forEach(invoice => {
                 if (invoice.status !== "pending") return;
@@ -5914,6 +5919,15 @@
                         driver.restLocked = false; // unlock when 11h rest completes
                         notify("Chofer disponible", `${driver.first} ${driver.last} ha terminado su descanso y está disponible.`, "ok");
                     }
+                }
+                if (event.type === "legal-collect") {
+                    const inv = state.invoicesIssued.find(i => i.id === event.invoiceId);
+                    if (inv && inv.legalNetRecovery > 0) {
+                        addMovement("income", `Cobro judicial neto — ${event.clientName || inv?.clientName || "cliente"}`, event.amount || inv.legalNetRecovery);
+                        addEmail("legal@ecachlogistic.eu", `Cobro judicial recibido — ${event.clientName || inv?.clientName}`, `Se han ingresado ${fmtMoney(event.amount || inv.legalNetRecovery)} en tu cuenta como cobro neto de la reclamación judicial (factura original: ${fmtMoney(inv?.amount || 0)} − 500€ honorarios).`, "legal");
+                        notify("⚖️ Cobro judicial recibido", `${fmtMoney(event.amount || inv.legalNetRecovery)} ingresados en tu cuenta.`, "ok", true);
+                    }
+                    processed = true;
                 }
                 if (event.type === "moroso-auto-pay") {
                     const invoice = state.invoicesIssued.find(i => i.id === event.invoiceId);
@@ -6867,6 +6881,16 @@
                     const restStart = d.restStartTs || d.lastRestEndTs || nowT;
                     const restSoFar = (nowT - restStart) / MS_HOUR;
                     const tachoReady = restSoFar >= TACHO_DAILY_REST_HOURS;
+                    // If rest is complete and drivingToday still shows hours, reset it now
+                    // (the tacho-reset event may have been lost — this is a safety net)
+                    if (tachoReady && (d.drivingToday > 0 || d.continuousDriving > 0 || d.restMandatory || d.restUntilTs)) {
+                        d.drivingToday = 0;
+                        d.continuousDriving = 0;
+                        d.restMandatory = false;
+                        d.restUntilTs = null;
+                        d.restLocked = false;
+                        d.lastRestEndTs = nowT;
+                    }
                     // Always show rest badge when driver is in base so player can see elapsed rest time
                     restBadge = `<br><span style="font-size:11px;color:${tachoReady ? "#35c759" : "#8f9baa"}">😴 ${fmtDurationHours(Math.min(restSoFar, 24))} descansado${tachoReady ? " · ✅ Tacho a 0" : ` · reset en ${fmtDurationHours(Math.max(0, TACHO_DAILY_REST_HOURS - restSoFar))}`}</span>`;
                 }
@@ -7290,7 +7314,7 @@
                 }
                 // Judicial: immediate, show as today if recently filed
                 if (i.legalClaimed && i.legalClaimedAt && !i.burofaxWillPay) {
-                    addDay(i.legalClaimedAt + 3600000, `⚖️ Cobro judicial: ${i.clientName}${i.orderId ? ` · #${shortId(i.orderId)}` : ""}`, Math.round(i.amount * 1.2), "income");
+                    addDay(i.legalClaimedAt + 3600000, `⚖️ Cobro judicial (neto): ${i.clientName}${i.orderId ? ` · #${shortId(i.orderId)}` : ""}`, Math.max(0, i.amount - 500), "income");
                 }
                 // Overdue with no action yet — show as pending in calendar
                 if (i.status === "overdue" && !i.morosoClaimed && !i.burofaxSent && !i.legalClaimed) {
@@ -7364,7 +7388,7 @@
                     burofaxAction = `<button data-action="burofax" data-id="${i.id}">📮 Burofax 30€</button>`;
                 }
             }
-            const legalAction = i.status === "overdue" && !i.burofaxWillPay ? `<button class="danger" data-action="legal-claim" data-id="${i.id}">⚖️ Reclamar judicial 500€</button>` : "";
+            const legalAction = i.status === "overdue" && !i.burofaxWillPay ? `<button class="danger" data-action="legal-claim" data-id="${i.id}">⚖️ Reclamar judicial (cobras ${fmtMoney(Math.max(0,i.amount-500))} neto)</button>` : "";
             const statusLabel = { pending: "Pendiente", overdue: "Impagada", claimed: "Reclamada", paid: "Cobrada", "burofax-sent": "Burofax enviado" }[i.status] || i.status;
             return `<article class="card"><h3>${i.clientName} <span class="muted" style="font-size:12px">· Pedido #${shortId(i.orderId)}</span></h3><p>Importe: <span class="mono ok-text">${fmtMoney(i.amount)}</span></p><p>Emitida: ${fmtDate(i.issuedAt)} · Vence: ${fmtDate(i.dueAt)}</p><p>Estado: <span class="badge ${i.status === "overdue" ? "danger" : i.status === "claimed" ? "info" : i.status === "paid" ? "ok" : "warn"}">${statusLabel}</span></p>${i.status === "claimed" ? `<p class="muted">Reclamada. Cobro previsto antes de ${fmtDate(i.claimPayAt)}.</p>` : ""}${i.status === "overdue" ? `<div class="row">${morosoAction}${burofaxAction}${legalAction}</div>` : ""}</article>`;
         }
@@ -11827,7 +11851,7 @@
                     notify("📮 Burofax enviado", `Coste 30€. El cliente pagará antes de ${fmtDate(invoice.burofaxPayAt)}.`, "ok", true);
                 } else {
                     invoice.burofaxWillPay = false;
-                    addEmail("cobros@ecachlogistic.eu", `Burofax · cliente ${invoice.clientName} sin respuesta`, `El cliente ignora el burofax. Puedes escalar a reclamación judicial (500€ + 20% intereses, cobro inmediato).`, "invoice", invoice.id);
+                    addEmail("cobros@ecachlogistic.eu", `Burofax · cliente ${invoice.clientName} sin respuesta`, `El cliente ignora el burofax. Puedes escalar a reclamación judicial: pagas 500€ de honorarios y recuperas el importe de la factura menos los 500€ en 24-48h. Solo compensa si la factura supera los 500€.`, "invoice", invoice.id);
                     notify("📮 Burofax enviado", "Coste 30€. El cliente NO ha respondido. Puedes escalar a reclamación judicial.", "warn", true);
                 }
                 renderAll(); saveGame(true);
@@ -11840,15 +11864,25 @@
             }
             if (action === "legal-claim") {
                 const invoice = state.invoicesIssued.find(i => i.id === id);
-                if (!invoice) return;
-                const recovery = invoice.amount * 1.20;
-                if (!confirm(`⚖️ Reclamación judicial\n\nCoste: 500€\nRecuperación: ${fmtMoney(invoice.amount)} + 20% intereses = ${fmtMoney(recovery)}\nPlazo: cobro inmediato\n\n¿Continuar?`)) return;
-                addMovement("expense", "Reclamación judicial impago", -500);
+                if (!invoice || invoice.status !== "overdue") return;
+                const netRecovery = Math.max(0, invoice.amount - 500);
+                if (invoice.amount <= 500) {
+                    if (!confirm(`⚖️ Reclamación judicial\n\n⚠️ ATENCIÓN: Esta factura es de ${fmtMoney(invoice.amount)}, menor o igual a los honorarios legales de 500€.\nSi continúas NO recuperarás nada — perderás los 500€ de honorarios.\n\n¿Seguro que quieres continuar?`)) return;
+                } else {
+                    if (!confirm(`⚖️ Reclamación judicial\n\nHonorarios legales: 500€ (se descuentan ahora)\nImporte de la factura: ${fmtMoney(invoice.amount)}\nCobro neto que recibirás: ${fmtMoney(netRecovery)}\nPlazo: 24-48 horas (garantizado)\n\n¿Continuar?`)) return;
+                }
+                addMovement("expense", "Honorarios reclamación judicial", -500);
                 invoice.status = "paid";
                 invoice.paidAt = Date.now();
-                addMovement("income", `Recuperación judicial ${invoice.clientName} (deuda + 20% intereses)`, recovery);
-                addEmail("legal@ecachlogistic.eu", `Reclamación judicial resuelta`, `Cliente ${invoice.clientName} pagó ${fmtMoney(recovery)} (deuda ${fmtMoney(invoice.amount)} + 20% intereses).`, "legal", invoice.id);
-                notify("⚖️ Reclamación judicial resuelta", `Recuperados ${fmtMoney(recovery)} (incluye 20% intereses).`, "ok", true);
+                invoice.legalClaimed = true;
+                invoice.legalClaimedAt = Date.now();
+                const collectAt = Date.now() + (24 + Math.random() * 24) * 3600 * 1000;
+                invoice.legalCollectAt = collectAt;
+                invoice.legalNetRecovery = netRecovery;
+                state.futureEvents = state.futureEvents || [];
+                state.futureEvents.push({ type: "legal-collect", invoiceId: invoice.id, ts: collectAt, amount: netRecovery, clientName: invoice.clientName });
+                addEmail("legal@ecachlogistic.eu", `Reclamación judicial iniciada — ${invoice.clientName}`, `Hemos presentado la reclamación contra ${invoice.clientName} por ${fmtMoney(invoice.amount)}.\n\nHonorarios descontados: 500€\nCobro neto previsto: ${fmtMoney(netRecovery)}\nPlazo estimado: 24-48 horas.`, "legal", invoice.id);
+                notify("⚖️ Reclamación judicial iniciada", `Honorarios: -500€. Cobro neto previsto: ${fmtMoney(netRecovery)} en 24-48h.`, "ok", true);
                 renderAll(); saveGame(true);
             }
         }
