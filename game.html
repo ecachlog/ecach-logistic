@@ -712,6 +712,33 @@
             // Ensure a new player gets a cloud save soon after login, so they show up in the global ranking
             if (user) setTimeout(() => { try { if (fbLoadComplete && typeof fbSave === "function") fbSave(true); } catch(e) {} }, 4000);
             if (user) {
+                // ── Double-session guard ──────────────────────────────────────────
+                // If another tab/device is actively running the game (heartbeat < 60s old),
+                // warn before loading to prevent save conflicts.
+                try {
+                    const _SESSION_KEY = "ecach_active_session_v1";
+                    const sess = JSON.parse(localStorage.getItem(_SESSION_KEY) || "{}");
+                    const sessAge = Date.now() - (sess.ts || 0);
+                    const isOtherTab = sess.tabId && (sess.uid === user.uid) && sessAge < 60000;
+                    if (isOtherTab) {
+                        const proceed = confirm(
+                            "⚠️ SESIÓN ACTIVA EN OTRO DISPOSITIVO\n\n" +
+                            "El juego ya está abierto en otro navegador o dispositivo.\n\n" +
+                            "Si continúas aquí, los dos dispositivos pueden sobrescribirse el uno al otro y perder progreso.\n\n" +
+                            "✅ Cierra el juego en el otro dispositivo antes de continuar.\n\n" +
+                            "¿Quieres cargar el juego aquí de todas formas? (NO recomendado)"
+                        );
+                        if (!proceed) {
+                            // Block loading — keep showing the auth gate or a blank screen
+                            document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#0d1117;color:#cbd5e1;font-family:sans-serif;text-align:center;padding:24px"><div><div style="font-size:48px;margin-bottom:16px">⚠️</div><h2 style="color:#ff7a1a;margin-bottom:12px">Sesión activa en otro dispositivo</h2><p style="color:#8f9baa;max-width:400px;line-height:1.6">Cierra el juego en el otro dispositivo y vuelve a cargar esta página.</p><button onclick="location.reload()" style="margin-top:24px;background:#ff7a1a;color:#1a0e05;border:none;padding:14px 28px;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer">Reintentar</button></div></div>`;
+                            return;
+                        }
+                        // Player forced through — mark this tab as the active session
+                        localStorage.setItem(_SESSION_KEY, JSON.stringify({ tabId: Math.random().toString(36).slice(2), ts: Date.now(), uid: user.uid }));
+                    }
+                } catch(e) { /* non-critical */ }
+                // ─────────────────────────────────────────────────────────────────
+
                 // Block auto cloud-save until cloud and local are reconciled
                 window._skipAutoCloudSave = true;
                 // Retry logic: try up to 3 times with backoff in case token isn't ready or network is flaky
@@ -7753,7 +7780,7 @@
             const playerId = fbUser?.uid || null;
             const playerEmail = fbUser?.email || null;
             const playerIdCard = playerId ? `<div class="card"><h3>🆔 ID de jugador</h3><p style="color:var(--muted);font-size:13px">Este es tu identificador único en el juego. Lo puedes compartir con otros jugadores para que te identifiquen al unirse a tu alianza.</p><p><strong>Email:</strong> ${playerEmail}</p><p><strong>ID:</strong> <span class="mono" style="background:#1e2530;padding:4px 8px;border-radius:4px;font-size:11px;word-break:break-all;display:inline-block;max-width:100%">${playerId}</span></p><button class="ghost small" data-action="copy-player-id">📋 Copiar ID</button></div>` : `<div class="card"><h3>🆔 ID de jugador</h3><p style="color:var(--muted)">Inicia sesión para ver tu ID de jugador.</p></div>`;
-            const adminPanel = (fbUser && fbUser.email === "nikelaitor@hotmail.com") ? `<div class="card" style="border-color:rgba(232,165,4,.4);background:rgba(232,165,4,.06)"><h3>🔧 Administrador — Mantenimiento</h3><p style="color:var(--muted);font-size:13px">Antes de subir una actualización, activa el mantenimiento: en menos de 1 minuto todos los jugadores guardarán su partida y serán expulsados con un mensaje pidiéndoles volver en 10 minutos. Recuerda DESACTIVARLO cuando termines de subir.</p><div class="row" style="margin-top:10px"><button class="primary" data-action="maintenance-on">🔧 Activar mantenimiento</button><button class="ghost" data-action="maintenance-off">✅ Desactivar mantenimiento</button></div></div>` : "";
+            const adminPanel = (fbUser && fbUser.email === "nikelaitor@hotmail.com") ? `<div class="card" style="border-color:rgba(232,165,4,.4);background:rgba(232,165,4,.06)"><h3>🔧 Administrador — Mantenimiento</h3><p style="color:var(--muted);font-size:13px">Antes de subir una actualización, activa el mantenimiento: en menos de 1 minuto todos los jugadores guardarán su partida y serán expulsados con un mensaje pidiéndoles volver en 10 minutos. Recuerda DESACTIVARLO cuando termines de subir.</p><div class="row" style="margin-top:10px"><button class="primary" data-action="maintenance-on">🔧 Activar mantenimiento</button><button class="ghost" data-action="maintenance-off">✅ Desactivar mantenimiento</button></div><hr style="margin:14px 0;border-color:rgba(232,165,4,.2)"><p style="color:var(--muted);font-size:13px">Herramientas de reparación de partida (solo para tu cuenta):</p><div class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px"><button class="danger" data-action="admin-fix-ghost-trips">🧹 Limpiar viajes fantasma</button><button class="ghost" data-action="admin-fix-ghost-maintenance">🔩 Limpiar mantenimientos fantasma</button></div></div>` : "";
             $("settingsContent").innerHTML = `
             ${state.initialized ? `<div class="card"><h3>🏢 Nombre de tu empresa</h3><p style="color:var(--muted)">Nombre actual: <strong>${escapeHtml(currentName) || "Sin nombre"}</strong></p><label><span class="label">Cambiar nombre</span><input id="companyNameInput" maxlength="40" placeholder="Ej: Transportes García, LogiSur..." value="${escapeHtml(currentName)}"></label><div class="row" style="margin-top:10px"><button class="primary" data-action="save-company-name">Guardar nombre</button></div></div>` : ""}
             ${adminPanel}
@@ -11832,6 +11859,34 @@
             if (action === "change-tires") showTireChangeOptions(id);
             if (action === "tire-change-confirm") changeTires(btn.dataset.vehicle, btn.dataset.mode);
             if (action === "pass-itv") passItv(id, btn.dataset.kind);
+            if (action === "admin-fix-ghost-trips") {
+                // Remove trips from activeTrips that have no real truck or are stuck in "en uso" with no match
+                const before = (state.activeTrips || []).length;
+                state.activeTrips = (state.activeTrips || []).filter(t => {
+                    const truck = state.fleet.find(v => v.id === t.truckId);
+                    const hasTruck = truck && truck.currentTripId === t.id;
+                    return hasTruck;
+                });
+                // Also clean up vehicles that think they're in a trip that no longer exists
+                const tripIds = new Set((state.activeTrips || []).map(t => t.id));
+                state.fleet.forEach(v => { if (v.currentTripId && !tripIds.has(v.currentTripId)) { v.currentTripId = null; v.status = "Base"; } });
+                state.cisterns.forEach(c => { if (c.currentTripId && !tripIds.has(c.currentTripId)) { c.currentTripId = null; c.status = "Base"; } });
+                state.workers.forEach(w => { if (w.currentTripId && !tripIds.has(w.currentTripId)) { w.currentTripId = null; w.status = "Disponible"; } });
+                // Clean gas station orders stuck in use
+                const after = (state.activeTrips || []).length;
+                notify("🧹 Viajes fantasma limpiados", `Se eliminaron ${before - after} viaje(s) fantasma. Vehículos y conductores liberados.`, "ok", true);
+                saveGame(true); renderAll();
+                return;
+            }
+            if (action === "admin-fix-ghost-maintenance") {
+                // Clear stuck maintenance flags on trucks and cisterns
+                let fixed = 0;
+                state.fleet.forEach(v => { if (v.maintenanceInProgress && !v.maintenanceEndTs) { v.maintenanceInProgress = false; fixed++; } if (v.maintenanceEndTs && v.maintenanceEndTs < Date.now()) { v.maintenanceInProgress = false; v.maintenanceEndTs = null; fixed++; } });
+                state.cisterns.forEach(c => { if (c.maintenanceInProgress && !c.maintenanceEndTs) { c.maintenanceInProgress = false; fixed++; } if (c.maintenanceEndTs && c.maintenanceEndTs < Date.now()) { c.maintenanceInProgress = false; c.maintenanceEndTs = null; fixed++; } });
+                notify("🔩 Mantenimientos limpiados", `Se corrigieron ${fixed} estado(s) de mantenimiento fantasma.`, "ok", true);
+                saveGame(true); renderAll();
+                return;
+            }
             if (action === "maintenance-on") { if (confirm("¿Activar modo mantenimiento?\n\nTodos los jugadores guardarán su partida y serán expulsados en menos de 1 minuto. Acuérdate de DESACTIVARLO cuando termines de subir la actualización.")) toggleMaintenance(true); return; }
             if (action === "maintenance-off") { toggleMaintenance(false); return; }
             if (action === "set-language") setLanguage(valueOf("languageSelect") || "es", true);
@@ -12258,6 +12313,30 @@
         }
 
         setInterval(tick, 1000);
+
+        // ── Session heartbeat — prevents two devices from overwriting each other ──
+        const _SESSION_KEY = "ecach_active_session_v1";
+        const _TAB_ID = Math.random().toString(36).slice(2);
+        function _writeSessionHeartbeat() {
+            try {
+                const prev = JSON.parse(localStorage.getItem(_SESSION_KEY) || "{}");
+                if (!prev.tabId || prev.tabId === _TAB_ID || (Date.now() - (prev.ts || 0)) > 60000) {
+                    localStorage.setItem(_SESSION_KEY, JSON.stringify({ tabId: _TAB_ID, ts: Date.now(), uid: fbUser?.uid || "" }));
+                }
+            } catch(e) {}
+        }
+        function _clearSessionHeartbeat() {
+            try {
+                const prev = JSON.parse(localStorage.getItem(_SESSION_KEY) || "{}");
+                if (prev.tabId === _TAB_ID) localStorage.removeItem(_SESSION_KEY);
+            } catch(e) {}
+        }
+        _writeSessionHeartbeat();
+        setInterval(_writeSessionHeartbeat, 30000);
+        window.addEventListener("beforeunload", _clearSessionHeartbeat);
+        window.addEventListener("pagehide", _clearSessionHeartbeat);
+        // ─────────────────────────────────────────────────────────────────────────
+
         // Force Firebase save every 10s to keep ranking updated for everyone
         setInterval(() => { if (fbUser && fbLoadComplete && !window._skipAutoCloudSave) saveGame(true); }, 10000);
         // Periodically check if my shared orders were taken by a teammate, so they leave my list
