@@ -719,7 +719,7 @@
                     const _SESSION_KEY = "ecach_active_session_v1";
                     const sess = JSON.parse(localStorage.getItem(_SESSION_KEY) || "{}");
                     const sessAge = Date.now() - (sess.ts || 0);
-                    const isOtherTab = sess.tabId && (sess.uid === user.uid) && sessAge < 60000;
+                    const isOtherTab = sess.tabId && (sess.uid === user.uid) && sessAge < 90000;
                     if (isOtherTab) {
                         const proceed = confirm(
                             "⚠️ SESIÓN ACTIVA EN OTRO DISPOSITIVO\n\n" +
@@ -10706,6 +10706,11 @@
             const r = state.airportContracts;
             const contract = (r?.available || []).find(c => c.id === id);
             if (!contract) return;
+            // Check active contract FIRST — before checking resources
+            const hasActiveContract = (state.orders || []).some(o => o.airportContract && (o.status === "Aceptado" || o.status === "En uso"));
+            if (hasActiveContract) {
+                return notify("Ya tienes un contrato activo", "Ya tienes un contrato aeroportuario en curso. Solo puedes tener uno activo a la vez. Completa todos los viajes del contrato actual antes de aceptar uno nuevo.", "warn", true);
+            }
             // Requirement: at least 1 free JetA1 trailer AND 1 driver with the Jet A-1 license
             const hasTrailer = (state.cisterns || []).some(c => c.jetA1 && c.status === "Base");
             const hasDriver = (state.workers || []).some(w => w.role === "Conductor" && w.jetA1License && w.status === "Disponible");
@@ -12320,7 +12325,7 @@
         function _writeSessionHeartbeat() {
             try {
                 const prev = JSON.parse(localStorage.getItem(_SESSION_KEY) || "{}");
-                if (!prev.tabId || prev.tabId === _TAB_ID || (Date.now() - (prev.ts || 0)) > 60000) {
+                if (!prev.tabId || prev.tabId === _TAB_ID || (Date.now() - (prev.ts || 0)) > 90000) {
                     localStorage.setItem(_SESSION_KEY, JSON.stringify({ tabId: _TAB_ID, ts: Date.now(), uid: fbUser?.uid || "" }));
                 }
             } catch(e) {}
@@ -12332,9 +12337,15 @@
             } catch(e) {}
         }
         _writeSessionHeartbeat();
-        setInterval(_writeSessionHeartbeat, 30000);
+        setInterval(_writeSessionHeartbeat, 20000); // every 20s so 60s timeout is safe
+        // Clear on close — these don't always fire on mobile but we try both
         window.addEventListener("beforeunload", _clearSessionHeartbeat);
         window.addEventListener("pagehide", _clearSessionHeartbeat);
+        // When tab becomes visible again (user returns to browser), rewrite heartbeat
+        // so it's always fresh and doesn't look like an "other device" session
+        document.addEventListener("visibilitychange", () => {
+            if (!document.hidden) _writeSessionHeartbeat();
+        });
         // ─────────────────────────────────────────────────────────────────────────
 
         // Force Firebase save every 10s to keep ranking updated for everyone
