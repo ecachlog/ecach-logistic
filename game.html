@@ -712,33 +712,6 @@
             // Ensure a new player gets a cloud save soon after login, so they show up in the global ranking
             if (user) setTimeout(() => { try { if (fbLoadComplete && typeof fbSave === "function") fbSave(true); } catch(e) {} }, 4000);
             if (user) {
-                // ── Double-session guard ──────────────────────────────────────────
-                // If another tab/device is actively running the game (heartbeat < 60s old),
-                // warn before loading to prevent save conflicts.
-                try {
-                    const _SESSION_KEY = "ecach_active_session_v1";
-                    const sess = JSON.parse(localStorage.getItem(_SESSION_KEY) || "{}");
-                    const sessAge = Date.now() - (sess.ts || 0);
-                    const isOtherTab = sess.tabId && (sess.uid === user.uid) && sessAge < 90000;
-                    if (isOtherTab) {
-                        const proceed = confirm(
-                            "⚠️ SESIÓN ACTIVA EN OTRO DISPOSITIVO\n\n" +
-                            "El juego ya está abierto en otro navegador o dispositivo.\n\n" +
-                            "Si continúas aquí, los dos dispositivos pueden sobrescribirse el uno al otro y perder progreso.\n\n" +
-                            "✅ Cierra el juego en el otro dispositivo antes de continuar.\n\n" +
-                            "¿Quieres cargar el juego aquí de todas formas? (NO recomendado)"
-                        );
-                        if (!proceed) {
-                            // Block loading — keep showing the auth gate or a blank screen
-                            document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#0d1117;color:#cbd5e1;font-family:sans-serif;text-align:center;padding:24px"><div><div style="font-size:48px;margin-bottom:16px">⚠️</div><h2 style="color:#ff7a1a;margin-bottom:12px">Sesión activa en otro dispositivo</h2><p style="color:#8f9baa;max-width:400px;line-height:1.6">Cierra el juego en el otro dispositivo y vuelve a cargar esta página.</p><button onclick="location.reload()" style="margin-top:24px;background:#ff7a1a;color:#1a0e05;border:none;padding:14px 28px;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer">Reintentar</button></div></div>`;
-                            return;
-                        }
-                        // Player forced through — mark this tab as the active session
-                        localStorage.setItem(_SESSION_KEY, JSON.stringify({ tabId: Math.random().toString(36).slice(2), ts: Date.now(), uid: user.uid }));
-                    }
-                } catch(e) { /* non-critical */ }
-                // ─────────────────────────────────────────────────────────────────
-
                 // Block auto cloud-save until cloud and local are reconciled
                 window._skipAutoCloudSave = true;
                 // Retry logic: try up to 3 times with backoff in case token isn't ready or network is flaky
@@ -10707,9 +10680,12 @@
             const contract = (r?.available || []).find(c => c.id === id);
             if (!contract) return;
             // Check active contract FIRST — before checking resources
-            const hasActiveContract = (state.orders || []).some(o => o.airportContract && (o.status === "Aceptado" || o.status === "En uso"));
+            // An active contract means: any airport order in Aceptado, En uso, or any active trip with airportContract
+            const hasActiveContract =
+                (state.orders || []).some(o => o.airportContract && (o.status === "Aceptado" || o.status === "En uso")) ||
+                (state.activeTrips || []).some(t => t.airportContract);
             if (hasActiveContract) {
-                return notify("Ya tienes un contrato activo", "Ya tienes un contrato aeroportuario en curso. Solo puedes tener uno activo a la vez. Completa todos los viajes del contrato actual antes de aceptar uno nuevo.", "warn", true);
+                return notify("Ya tienes un contrato activo", "Ya tienes un contrato aeroportuario en curso. Solo puedes tener uno activo a la vez y uno por semana. Completa todos los viajes del contrato actual antes de aceptar uno nuevo.", "warn", true);
             }
             // Requirement: at least 1 free JetA1 trailer AND 1 driver with the Jet A-1 license
             const hasTrailer = (state.cisterns || []).some(c => c.jetA1 && c.status === "Base");
@@ -12319,34 +12295,6 @@
 
         setInterval(tick, 1000);
 
-        // ── Session heartbeat — prevents two devices from overwriting each other ──
-        const _SESSION_KEY = "ecach_active_session_v1";
-        const _TAB_ID = Math.random().toString(36).slice(2);
-        function _writeSessionHeartbeat() {
-            try {
-                const prev = JSON.parse(localStorage.getItem(_SESSION_KEY) || "{}");
-                if (!prev.tabId || prev.tabId === _TAB_ID || (Date.now() - (prev.ts || 0)) > 90000) {
-                    localStorage.setItem(_SESSION_KEY, JSON.stringify({ tabId: _TAB_ID, ts: Date.now(), uid: fbUser?.uid || "" }));
-                }
-            } catch(e) {}
-        }
-        function _clearSessionHeartbeat() {
-            try {
-                const prev = JSON.parse(localStorage.getItem(_SESSION_KEY) || "{}");
-                if (prev.tabId === _TAB_ID) localStorage.removeItem(_SESSION_KEY);
-            } catch(e) {}
-        }
-        _writeSessionHeartbeat();
-        setInterval(_writeSessionHeartbeat, 20000); // every 20s so 60s timeout is safe
-        // Clear on close — these don't always fire on mobile but we try both
-        window.addEventListener("beforeunload", _clearSessionHeartbeat);
-        window.addEventListener("pagehide", _clearSessionHeartbeat);
-        // When tab becomes visible again (user returns to browser), rewrite heartbeat
-        // so it's always fresh and doesn't look like an "other device" session
-        document.addEventListener("visibilitychange", () => {
-            if (!document.hidden) _writeSessionHeartbeat();
-        });
-        // ─────────────────────────────────────────────────────────────────────────
 
         // Force Firebase save every 10s to keep ranking updated for everyone
         setInterval(() => { if (fbUser && fbLoadComplete && !window._skipAutoCloudSave) saveGame(true); }, 10000);
