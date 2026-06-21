@@ -12332,17 +12332,19 @@
         // Load alliance prize on startup so antimultas works without opening Alianzas
         async function _refreshAlliancePrize() {
             try {
-                if (!_inAlliance) return;
+                // Don't check _inAlliance here — it may not be set yet on startup.
+                // The endpoint returns null gracefully if the player has no alliance.
                 const data = await apiCall("GET", "/api/alliances/mine");
                 if (data?.alliance?.activePrizeId && data.alliance.activePrizeExpires > Date.now()) {
                     _activeAlliancePrize = { id: data.alliance.activePrizeId, expiresAt: data.alliance.activePrizeExpires };
+                    _inAlliance = true; // also update the flag
                 } else {
                     _activeAlliancePrize = null;
                 }
             } catch(e) {}
         }
-        setTimeout(_refreshAlliancePrize, 3000); // load shortly after game starts
-        setInterval(_refreshAlliancePrize, 10 * 60 * 1000); // refresh every 10 min
+        setTimeout(_refreshAlliancePrize, 2000); // load 2s after game starts — before any trips tick
+        setInterval(_refreshAlliancePrize, 5 * 60 * 1000); // refresh every 5 min
 
 
         // Force Firebase save every 10s to keep ranking updated for everyone
