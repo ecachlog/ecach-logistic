@@ -493,7 +493,7 @@
                     <div class="mhud" id="mobileAdrHud">ADR OK</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:10px;color:var(--steel);font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v1.5</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v1.6</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -521,7 +521,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:10px;color:var(--steel);font-weight:700;letter-spacing:.5px">v1.5</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v1.6</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -10630,6 +10630,8 @@
             if (!el) return;
             if (!r || !r.hasOffice) { el.innerHTML = ""; return; }
             const now = Date.now();
+            const weeklyLimitReached = !!r.weeklyLimitReached;
+            const nextResetStr = r.nextResetMs ? fmtDate(r.nextResetMs) : "";
             let html = "";
             const avail = (r.available || []).filter(c => c.status === "available");
             if (avail.length) {
@@ -10643,7 +10645,9 @@
                         <span class="muted" style="font-size:12px">${c.trips} viajes · ${fmtLiters(c.liters)} · <strong>${c.pricePerKm.toFixed(2)} €/km</strong></span><br>
                         <span class="muted" style="font-size:11px">~${Math.round(km)} km ida y vuelta desde tu base</span><br>
                         ${soon ? `<span class="badge warn">🔜 Próximamente</span>` : `<span class="badge ok">Disponible</span> <span class="muted" style="font-size:11px">· plazo total ~${hoursToDeadline}h</span>`}
-                        ${!soon ? `<div style="margin-top:6px"><button class="primary small" data-action="accept-airport-contract" data-id="${c.id}">✅ Aceptar contrato</button></div>` : ""}
+                        ${!soon ? (weeklyLimitReached
+                            ? `<div style="margin-top:6px"><span class="muted" style="font-size:12px;color:#e8a504">📅 Ya aceptaste un contrato esta semana. Podrás aceptar otro el lunes a las 00:00${nextResetStr ? ` (${nextResetStr})` : ""}.</span></div>`
+                            : `<div style="margin-top:6px"><button class="primary small" data-action="accept-airport-contract" data-id="${c.id}">✅ Aceptar contrato</button></div>`) : ""}
                     </div>`;
                 }).join("");
                 html += `</div>`;
