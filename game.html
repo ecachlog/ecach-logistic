@@ -4152,7 +4152,25 @@
             const cleaning = calculateCisternCleaning(cistern, order.product);
             const windowImpact = calculateWindowImpact(order, Date.now(), weather.speed, traffic.multiplier, cleaning.hours);
             const schedulePlan = buildTripSchedule(order, weather.speed, traffic.multiplier, drivers, truck);
-            let durationHours = schedulePlan.schedule.reduce((sum, leg) => sum + (leg.durationMs || 0) / MS_HOUR, 0) + cleaning.hours + windowImpact.waitHours + (order.routeRules?.extraHours || 0);
+            // Validate duo schedule: if 2 drivers and total drive > 9h, both drivers must appear in schedule
+            if (drivers.length >= 2) {
+                const driveLegs = schedulePlan.schedule.filter(l => l.type === "drive");
+                const totalDriveHours = driveLegs.reduce((s, l) => s + (l.durationMs || 0) / MS_HOUR, 0);
+                const hasDriver1Legs = driveLegs.some(l => l.driverIdx === 1);
+                if (totalDriveHours > TACHO_DAILY_DRIVE_HOURS && !hasDriver1Legs) {
+                    // Schedule is broken — rebuild forcing driver 1 into the second half
+                    console.warn("[DUO SCHEDULE FIX] Rebuilding schedule — driver 1 was missing from legs");
+                    const fixedDrivers = [
+                        { ...drivers[0], drivingToday: 0 },
+                        { ...drivers[1], drivingToday: 0 }
+                    ];
+                    const fixedPlan = buildTripSchedule(order, weather.speed, traffic.multiplier, fixedDrivers, truck);
+                    schedulePlan.schedule = fixedPlan.schedule;
+                    schedulePlan.routeKm = fixedPlan.routeKm;
+                    schedulePlan.effectiveSpeed = fixedPlan.effectiveSpeed;
+                }
+            }
+            let durationHours = schedulePlan.schedule.filter(l => l.type !== "service").reduce((sum, leg) => sum + (leg.durationMs || 0) / MS_HOUR, 0) + cleaning.hours + windowImpact.waitHours + (order.routeRules?.extraHours || 0);
             let delayMs = 0;
             const fuelNeeded = kmRound * truck.consumption / 100;
             const refuelInfo = prepareFuelForTrip(truck, fuelNeeded);
@@ -4481,7 +4499,11 @@
                 // IMPORTANT: if lastTachoUpdateTs is missing, fall back to trip.startTs (not now!)
                 // Using now as fallback would make rawElapsedHours = 0 and skip all processing,
                 // which causes conductors to never accumulate hours when the game was closed during the trip.
-                const lastUpdate = trip.lastTachoUpdateTs || trip.startTs || now;
+                // lastTachoUpdateTs must be >= startTs. If the game was closed during a trip
+                // and reopened, lastTachoUpdateTs could be from a previous session but still
+                // valid. However if it's BEFORE startTs something is wrong — use startTs.
+                const rawLastUpdate = trip.lastTachoUpdateTs || trip.startTs || now;
+                const lastUpdate = Math.max(rawLastUpdate, trip.startTs || 0);
                 const rawElapsedHours = (now - lastUpdate) / MS_HOUR;
                 trip.lastTachoUpdateTs = now;
                 
@@ -10838,6 +10860,18 @@
             };
             const drivers = [driver];
             const schedulePlan = buildTripSchedule(order, weather.speed, traffic.multiplier, drivers, truck);
+            // Validate duo schedule
+            if (drivers.length >= 2) {
+                const driveLegs = schedulePlan.schedule.filter(l => l.type === "drive");
+                const totalDriveHours = driveLegs.reduce((s, l) => s + (l.durationMs || 0) / MS_HOUR, 0);
+                if (totalDriveHours > TACHO_DAILY_DRIVE_HOURS && !driveLegs.some(l => l.driverIdx === 1)) {
+                    console.warn("[DUO SCHEDULE FIX airport] Rebuilding schedule");
+                    const fp = buildTripSchedule(order, weather.speed, traffic.multiplier, [{ ...drivers[0], drivingToday: 0 }, { ...drivers[1], drivingToday: 0 }], truck);
+                    schedulePlan.schedule = fp.schedule;
+                    schedulePlan.routeKm = fp.routeKm;
+                    schedulePlan.effectiveSpeed = fp.effectiveSpeed;
+                }
+            }
             const scheduleDurationMs = schedulePlan.schedule.reduce((sum, leg) => sum + (leg.durationMs || 0), 0);
             const fuelNeeded = kmRound * truck.consumption / 100;
             const refuelInfo = prepareFuelForTrip(truck, fuelNeeded);
