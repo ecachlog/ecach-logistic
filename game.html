@@ -9070,13 +9070,13 @@
             const prizes = { "no-fines-24h": { name: "24 horas sin multas", cost: 5000 } };
             const prize = prizes[prizeId];
             if (!prize) return;
-            const balance = a.balance || 0;
-            if (balance < prize.cost) return notify("Fondo insuficiente", `El premio "${prize.name}" cuesta ${fmtMoney(prize.cost)}. El fondo comun tiene ${fmtMoney(balance)}.`, "danger", true);
-            if (!confirm(`Activar premio "${prize.name}"?\n\nCoste: ${fmtMoney(prize.cost)} del fondo comun\nFondo tras activar: ${fmtMoney(balance - prize.cost)}\n\nDurante 24 horas reales, ningun miembro recibira multas ni sanciones.\n\nTodos los miembros recibiran un email de aviso.`)) return;
+            const balance = a.privateFund || 0;
+            if (balance < prize.cost) return notify("Fondo insuficiente", `El premio "${prize.name}" cuesta ${fmtMoney(prize.cost)}. El Fondo Privado tiene ${fmtMoney(balance)}.`, "danger", true);
+            if (!confirm(`Activar premio "${prize.name}"?\n\nCoste: ${fmtMoney(prize.cost)} del Fondo Privado\nFondo privado tras activar: ${fmtMoney(balance - prize.cost)}\n\nDurante 24 horas reales, ningun miembro recibira multas ADR en carretera.\n\nTodos los miembros recibiran un email de aviso.`)) return;
             try {
                 const r = await apiCall("POST", `/api/alliances/${a.id}/activate-prize`, { prizeId });
                 _activeAlliancePrize = { id: prizeId, expiresAt: r.prize.expiresAt };
-                addEmail("alianza@ecachlogistic.eu", `Premio de alianza activado: ${prize.name}`, `El propietario de la alianza ha activado el premio "${prize.name}".\n\nDurante las proximas 24 horas, ningun miembro de la alianza recibira multas ni sanciones por entregas fuera de plazo.\n\nCoste: ${fmtMoney(prize.cost)} del fondo comun.`, "info");
+                addEmail("alianza@ecachlogistic.eu", `Premio de alianza activado: ${prize.name}`, `El propietario de la alianza ha activado el premio "${prize.name}".\n\nDurante las proximas 24 horas, ningun miembro de la alianza recibira multas ADR en controles de carretera.\n\nCoste: ${fmtMoney(prize.cost)} del Fondo Privado.`, "info");
                 notify("Premio activado", `"${prize.name}" activo durante 24 horas para toda la alianza.`, "ok", true);
                 renderAllianceMine();
             } catch (e) {
