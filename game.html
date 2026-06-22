@@ -493,7 +493,7 @@
                     <div class="mhud" id="mobileAdrHud">ADR OK</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v1.9</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v2.1</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -521,7 +521,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v1.9</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v2.1</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -1951,27 +1951,42 @@
             return weather;
         }
 
+        function currentSeason() {
+            // Northern hemisphere seasons by month
+            const m = new Date().getMonth(); // 0=Jan
+            if (m === 11 || m === 0 || m === 1) return "invierno";
+            if (m >= 2 && m <= 4) return "primavera";
+            if (m >= 5 && m <= 7) return "verano";
+            return "otoño"; // 8,9,10
+        }
+
         function randomWeatherForRegion(region) {
             const roll = Math.random();
-            // Nieve only in winter months (December, January, February)
-            const month = new Date().getMonth(); // 0=Jan, 11=Dec
-            const isWinter = month === 11 || month === 0 || month === 1;
-            if (region === "Norte") {
-                if (roll < .45) return "Despejado";
-                if (roll < .72) return "Lluvia";
-                if (roll < .90) return "Tormenta";
-                return isWinter ? "Nieve" : "Tormenta";
+            const season = currentSeason();
+            // Probability tables [despejado, lluvia, tormenta, nieve] per season.
+            // Adjusted afterwards per region (north colder/wetter, south drier/warmer).
+            let p;
+            switch (season) {
+                case "invierno": p = { desp: .40, lluvia: .25, tormenta: .15, nieve: .20 }; break;
+                case "primavera": p = { desp: .55, lluvia: .28, tormenta: .15, nieve: .02 }; break;
+                case "verano": p = { desp: .80, lluvia: .12, tormenta: .08, nieve: .00 }; break;
+                default: p = { desp: .58, lluvia: .26, tormenta: .13, nieve: .03 }; break; // otoño
             }
-            if (region === "Sur") {
-                if (roll < .76) return "Despejado";
-                if (roll < .91) return "Lluvia";
-                if (roll < .99) return "Tormenta";
-                return isWinter ? "Nieve" : "Tormenta";
+            // Regional adjustments
+            if (region === "Norte" || region === "Oeste") {
+                // Wetter and colder
+                p = { desp: p.desp * 0.8, lluvia: p.lluvia * 1.3, tormenta: p.tormenta * 1.15, nieve: p.nieve * 1.5 };
+            } else if (region === "Sur" || region === "Este") {
+                // Drier and warmer — almost no snow
+                p = { desp: p.desp * 1.25, lluvia: p.lluvia * 0.8, tormenta: p.tormenta * 0.85, nieve: p.nieve * 0.2 };
             }
-            if (roll < .62) return "Despejado";
-            if (roll < .82) return "Lluvia";
-            if (roll < .94) return "Tormenta";
-            return isWinter ? "Nieve" : "Tormenta";
+            // Normalize and pick
+            const total = p.desp + p.lluvia + p.tormenta + p.nieve;
+            const r = roll * total;
+            if (r < p.desp) return "Despejado";
+            if (r < p.desp + p.lluvia) return "Lluvia";
+            if (r < p.desp + p.lluvia + p.tormenta) return "Tormenta";
+            return "Nieve";
         }
 
         function blankState() {
@@ -4063,7 +4078,7 @@
             order.loadWindow = createTerminalWindow(now + rand(1, 8) * MS_HOUR, 4, 10);
             order.unloadWindow = createTerminalWindow(order.deadline - rand(12, 36) * MS_HOUR, 4, 10);
             _ordersTab = "accepted";
-            addEmail("operaciones@ecachlogistic.eu", `Pedido aceptado #${shortId(order.id)}`, `Pedido de ${order.clientName} aceptado. Debe completarse en un máximo de ${days} días: ${fmtDate(order.deadline)}.`, "order", order.id);
+            // Email de pedido aceptado eliminado para no saturar la bandeja
             // Single accept shows the toast; batch accept (silent) does not, to avoid covering the screen
             if (!silent) {
                 notify("Pedido aceptado", `#${shortId(order.id)} · ${order.clientName} aceptado. Ve a la pestaña Aceptados para despacharlo.`, "ok", true);
@@ -5416,8 +5431,17 @@
             const warehouseRent = state.warehouse?.rentMonthly || 0;
             const officeManagement = (state.commercialOffices || []).reduce((sum, office) => sum + (office.monthlyCost || COMMERCIAL_OFFICE_MONTHLY_COST), 0);
             const truckInsurance = state.fleet.reduce((sum, t) => sum + (t.insuranceMonthly || TRUCK_MONTHLY_INSURANCE), 0);
-            const interest = outstandingLoanPrincipal() * BANK_MONTHLY_INTEREST;
-            return { salaries, social, gestoria, truckRent, cisternRent, warehouseRent, officeManagement, truckInsurance, interest, total: salaries + social + gestoria + truckRent + cisternRent + warehouseRent + officeManagement + truckInsurance + interest };
+            // Loan repayments: monthly principal + interest for all active loans
+            let loanPrincipalMonthly = 0;
+            let loanInterestMonthly = 0;
+            (state.bank.loans || []).filter(l => l.status === "active").forEach(loan => {
+                const rem = loan.remaining ?? loan.principal;
+                loanPrincipalMonthly += loan.monthlyPrincipal || Math.round(loan.principal / BANK_LOAN_MONTHS);
+                loanInterestMonthly += Math.round(rem * BANK_MONTHLY_INTEREST);
+            });
+            const loanPayment = loanPrincipalMonthly + loanInterestMonthly;
+            const interest = loanInterestMonthly; // kept for backward compat
+            return { salaries, social, gestoria, truckRent, cisternRent, warehouseRent, officeManagement, truckInsurance, interest, loanPrincipalMonthly, loanInterestMonthly, loanPayment, total: salaries + social + gestoria + truckRent + cisternRent + warehouseRent + officeManagement + truckInsurance + loanPayment };
         }
         const BANK_LOAN_MONTHS = 24; // repayment period
 
@@ -6179,7 +6203,7 @@
             processAcceptedOrderDeadlines(now);
             refreshDailyOrders(now, true);
         }
-        function processWeather(now) { if (now - state.weatherUpdatedAt < MS_HOUR) return; state.weather = createWeather(now); state.weatherUpdatedAt = now; addEmail("meteo@ecachlogistic.eu", "Actualización meteorológica europea", REGIONS.map(r => `${r}: ${state.weather[r].state} (${state.weather[r].speed} km/h)`).join("\n"), "weather"); renderWeather(); }
+        function processWeather(now) { if (now - state.weatherUpdatedAt < MS_HOUR) return; state.weather = createWeather(now); state.weatherUpdatedAt = now; renderWeather(); }
 
         function processStaffEvents(now) {
             if (now < state.nextStaffEventAt || !state.workers.length) return;
@@ -6970,7 +6994,16 @@
             const mechAvailable = state.workers.filter(w => w.role === "Mecánico" && w.status === "Disponible").length;
             const mechTotal = state.workers.filter(w => w.role === "Mecánico").length;
             const jetCisternLine = jetCisternsTotal > 0 ? ` &nbsp;·&nbsp; ✈️ Remolques Jet A-1: <strong>${jetCisternsAvail}/${jetCisternsTotal}</strong>` : "";
-            const availabilityPanel = `<div class="card" style="border-color:rgba(75,159,231,.4);background:rgba(75,159,231,.06)"><p style="margin:0;font-size:14px">🚛 Tractoras disponibles: <strong>${trucksAvailable}/${trucksTotal}</strong> &nbsp;·&nbsp; 🛢️ Cisternas normales: <strong>${normalCisternsAvail}/${normalCisternsTotal}</strong>${jetCisternLine}</p><p style="margin:6px 0 0;font-size:14px">👷 Conductores libres: <strong>${driversAvailable}/${driversTotal}</strong> &nbsp;·&nbsp; 🔧 Mecánicos disponibles: <strong>${mechAvailable}/${mechTotal}</strong></p><p class="muted" style="margin:4px 0 0;font-size:12px">Disponibles = parados en base, listos para despachar (no están en ruta ni en descanso).</p></div>`;
+            const availRow = (icon, label, avail, total) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06)"><span style="font-size:14px">${icon} ${label}</span><strong style="font-size:15px;color:${avail > 0 ? "#35c759" : "#8f9baa"}">${avail}/${total}</strong></div>`;
+            const availabilityPanel = `<div class="card" style="border-color:rgba(75,159,231,.4);background:rgba(75,159,231,.06)">
+                <h3 style="margin:0 0 6px">🚛 Disponibilidad en base</h3>
+                ${availRow("🚛", "Tractoras", trucksAvailable, trucksTotal)}
+                ${availRow("🛢️", "Cisternas normales", normalCisternsAvail, normalCisternsTotal)}
+                ${jetCisternsTotal > 0 ? availRow("✈️", "Remolques Jet A-1", jetCisternsAvail, jetCisternsTotal) : ""}
+                ${availRow("👷", "Conductores libres", driversAvailable, driversTotal)}
+                ${availRow("🔧", "Mecánicos disponibles", mechAvailable, mechTotal)}
+                <p class="muted" style="margin:8px 0 0;font-size:12px">Disponibles = parados en base, listos para despachar (no están en ruta ni en descanso).</p>
+            </div>`;
             const fleetTabBtn = (id, label) => `<button class="small ${_fleetTab === id ? "primary" : "ghost"}" data-action="fleet-tab" data-tab="${id}" style="flex:1;min-width:0">${label}</button>`;
             const fleetTabBar = `<div class="card" style="padding:8px"><div class="row" style="gap:4px;flex-wrap:wrap">${fleetTabBtn("ruta", "🗺️ En ruta")}${fleetTabBtn("tractoras", "🚛 Tractoras")}${fleetTabBtn("remolques", "🛢️ Remolques")}${fleetTabBtn("tacografos", "📊 Tacógrafos")}</div></div>`;
             const tractorasTab = `<h3>Cabezas tractoras</h3><div class="table-wrap"><table><thead><tr><th>Vehículo</th><th>Modalidad</th><th>Consumo</th><th>Gasoil</th><th>Desgaste</th><th>Neumáticos</th><th>Próxima ITV</th><th>Estado</th><th>Acción</th></tr></thead><tbody>${truckRows || `<tr><td colspan="9">Sin tractoras.</td></tr>`}</tbody></table></div>`;
@@ -7282,7 +7315,7 @@
             ${mfs.truckInsurance > 0 ? `<tr><td style="padding:5px 8px">🛡️ Seguros vehículos</td><td class="mono" style="padding:5px 8px;text-align:right">${fmtMoney(mfs.truckInsurance)}</td></tr>` : ""}
             ${mfs.warehouseRent > 0 ? `<tr><td style="padding:5px 8px">🏭 Alquiler nave</td><td class="mono" style="padding:5px 8px;text-align:right">${fmtMoney(mfs.warehouseRent)}</td></tr>` : ""}
             ${mfs.officeManagement > 0 ? `<tr><td style="padding:5px 8px">🏢 Oficinas comerciales</td><td class="mono" style="padding:5px 8px;text-align:right">${fmtMoney(mfs.officeManagement)}</td></tr>` : ""}
-            ${mfs.interest > 0 ? `<tr><td style="padding:5px 8px">🏦 Intereses créditos</td><td class="mono" style="padding:5px 8px;text-align:right">${fmtMoney(mfs.interest)}</td></tr>` : ""}
+            ${mfs.loanPayment > 0 ? `<tr><td style="padding:5px 8px">🏦 Cuota crédito (capital ${fmtMoney(mfs.loanPrincipalMonthly)} + interés ${fmtMoney(mfs.loanInterestMonthly)})</td><td class="mono" style="padding:5px 8px;text-align:right">${fmtMoney(mfs.loanPayment)}</td></tr>` : ""}
             </tbody><tfoot><tr style="border-top:2px solid var(--line);font-weight:700"><td style="padding:8px">TOTAL mensual</td><td class="mono danger-text" style="padding:8px;text-align:right;font-size:15px">${fmtMoney(mfs.total)}</td></tr></tfoot></table></div></div>`;
             $("financeContent").innerHTML = `
             <div class="metrics">${metricHtml("Saldo actual", fmtMoney(state.bank.balance), "🏦")}${metricHtml("Nivel empresa", state.level, "🏢")}${metricHtml("Cobros pendientes", fmtMoney(pendingOut.filter(i=>i.status==="pending").reduce((s,i)=>s+i.amount,0)), "🧾")}${pendingOut.some(i=>i.status==="overdue") ? metricHtml("Morosos pendientes", fmtMoney(pendingOut.filter(i=>i.status==="overdue"||i.status==="claimed").reduce((s,i)=>s+i.amount,0)), "⚠️") : ""}${metricHtml("Facturas pendientes pago", fmtMoney(pendingIn.reduce((s,i)=>s+i.amount,0)), "📥")}</div>
@@ -11624,6 +11657,12 @@
             bases.forEach(base => generateClientsAroundBase(base, 5));
             if (state.level === 2) showModal("Oficinas comerciales desbloqueadas", "Ya puedes construir una oficina comercial por cada nivel aumentado. Cada oficina genera de 0 a 2 pedidos extra diarios.");
             if (state.level === 10) showModal("Duo Trailer desbloqueado", "A partir del nivel 10 pueden aparecer pedidos Duo Trailer dentro del maximo diario de pedidos disponibles.");
+            if (state.level === 4) {
+                const officesNow = (state.commercialOffices || []).length;
+                const officesMax = commercialOfficeLimit();
+                const officesLeft = Math.max(0, officesMax - officesNow);
+                showModal("⚠️ ¡Aprovecha el precio de las oficinas!", `Has llegado al nivel 4. <strong>En cuanto subas al nivel 5, construir cada oficina comercial pasará de ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST)} a ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST_L5)}.</strong><br><br>${officesLeft > 0 ? `Todavía puedes construir <strong>${officesLeft} oficina(s)</strong> al precio reducido de ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST)}. Te recomendamos construir todas las que necesites <strong>ANTES de subir al nivel 5</strong> para ahorrar.` : "Ya tienes construidas todas tus oficinas disponibles para este nivel."}`);
+            }
             if (state.level === 5) showModal("📈 Oficinas comerciales más caras", `Has llegado al nivel 5. A partir de ahora, construir una oficina comercial cuesta ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST_L5)} (antes ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST)}). El coste de gestión mensual sigue siendo ${fmtMoney(COMMERCIAL_OFFICE_MONTHLY_COST)}/mes. Las oficinas que ya tengas construidas no se ven afectadas; solo las nuevas.`);
             if (state.level === 3) showModal("Banco desbloqueado", "Ya puedes solicitar financiacion bancaria hasta 100.000 euros vivos con interes alto mensual.");
             // IMPORTANT: do NOT regenerate today's orders. The new cap only applies to the next day (next midnight)
@@ -12058,7 +12097,47 @@
 
         function haversineKm(lat1, lon1, lat2, lon2) { const R = 6371; const dLat = (lat2 - lat1) * Math.PI / 180; const dLon = (lon2 - lon1) * Math.PI / 180; const a = Math.sin(dLat/2) ** 2 + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLon/2) ** 2; return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)) * 1.18); }
         function getRegion(lat, lng) { if (lat > 50) return "Norte"; if (lat < 41) return "Sur"; if (lng < -3) return "Oeste"; if (lng > 12) return "Este"; return "Centro"; }
-        function getTrafficInfo(date) { const h = date.getHours(); const day = date.getDay(); if (day >= 1 && day <= 5 && ((h >= 7 && h < 9) || (h >= 17 && h < 20))) return { label: "Tráfico denso", multiplier: 1.30 }; if (h >= 22 || h < 6) return { label: "Tráfico fluido", multiplier: .90 }; return { label: "Tráfico normal", multiplier: 1 }; }
+        // Spanish/European public holidays (month-day) where traffic is heavier (long weekends, "puentes")
+        const TRAFFIC_HOLIDAYS = ["01-01","01-06","05-01","08-15","10-12","11-01","12-06","12-08","12-25","12-26"];
+        function isHolidayOrBridge(date) {
+            const md = String(date.getMonth()+1).padStart(2,"0") + "-" + String(date.getDate()).padStart(2,"0");
+            if (TRAFFIC_HOLIDAYS.includes(md)) return true;
+            // Bridge: if a holiday falls on Tue/Thu, the Mon/Fri is also heavy
+            const dow = date.getDay();
+            const check = (offsetDays) => {
+                const d = new Date(date); d.setDate(d.getDate() + offsetDays);
+                const m2 = String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+                return TRAFFIC_HOLIDAYS.includes(m2);
+            };
+            if (dow === 1 && check(1)) return true; // Monday before a Tuesday holiday
+            if (dow === 5 && check(-1)) return true; // Friday after a Thursday holiday
+            return false;
+        }
+
+        function getTrafficInfo(date) {
+            const h = date.getHours();
+            const day = date.getDay(); // 0=Sun, 6=Sat
+            const isWeekday = day >= 1 && day <= 5;
+            const isWeekend = day === 0 || day === 6;
+            // Holidays and bridges: heavy traffic on main roads, especially midday and afternoon
+            if (isHolidayOrBridge(date)) {
+                if (h >= 10 && h < 21) return { label: "Tráfico denso (festivo/puente)", multiplier: 1.35 };
+                return { label: "Tráfico moderado (festivo)", multiplier: 1.10 };
+            }
+            // Friday afternoon/evening — getaway traffic
+            if (day === 5 && h >= 15 && h < 21) return { label: "Tráfico denso (salida fin de semana)", multiplier: 1.35 };
+            // Sunday evening — return traffic
+            if (day === 0 && h >= 17 && h < 22) return { label: "Tráfico denso (retorno)", multiplier: 1.30 };
+            // Weekday rush hours
+            if (isWeekday && ((h >= 7 && h < 9) || (h >= 17 && h < 20))) return { label: "Hora punta", multiplier: 1.30 };
+            // Weekday midday moderate
+            if (isWeekday && h >= 13 && h < 15) return { label: "Tráfico moderado", multiplier: 1.12 };
+            // Night — free flowing
+            if (h >= 22 || h < 6) return { label: "Tráfico fluido (noche)", multiplier: .88 };
+            // Weekend daytime — lighter than weekday
+            if (isWeekend && h >= 9 && h < 21) return { label: "Tráfico ligero (finde)", multiplier: .95 };
+            return { label: "Tráfico normal", multiplier: 1 };
+        }
         function getAdrRestriction(date) {
             const h = date.getHours();
             const isSunday = date.getDay() === 0;
