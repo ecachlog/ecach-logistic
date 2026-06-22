@@ -493,7 +493,7 @@
                     <div class="mhud" id="mobileAdrHud">ADR OK</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v1.6</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v1.8</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -521,7 +521,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v1.6</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v1.8</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -6645,7 +6645,9 @@
                 const acceptAllBtn = availableOrders.length > 0 ? `<div class="row" style="margin-bottom:8px;flex-wrap:wrap;gap:8px"><button class="primary" data-action="accept-all-orders">✅ Aceptar todos los pedidos (${availableOrders.length})</button><button class="ghost" data-action="toggle-tachograph-consult">📊 Consulta de tacógrafos</button></div><div id="tachographConsultBox" class="hidden card" style="margin-bottom:8px;background:rgba(75,159,231,.05);border-color:#4b9fe7"><h3 style="margin-top:0">📊 Consulta de tacógrafos</h3><p class="muted" style="font-size:12px">Desplegable INFORMATIVO. Muestra los conductores disponibles con su carga del día. No tiene ninguna acción, solo te ayuda a comprobar qué conductor elegir antes de aceptar un pedido sin tener que ir al apartado de Tacógrafos.</p><div id="tachographConsultList"></div></div>` : "";
                 const dailyLimit = orderLimitForLevel();
                 const dailyGenerated = (state.orders || []).filter(o => o.dailyType !== "office" && !o.rouletteContract && o.dailyDay === state.dailyOrderDay).length;
-                const officeLimit = officeOrderTargetForDay();
+                // Show the MAXIMUM possible (2 per active office), not the random daily target
+                const _activeOfficesNow = (state.commercialOffices || []).filter(o => !o.blockedUntilTs || Date.now() >= o.blockedUntilTs);
+                const officeLimit = _activeOfficesNow.length * 2;
                 const officeGenerated = (state.orders || []).filter(o => o.dailyType === "office" && o.dailyDay === state.dailyOrderDay).length;
                 const dailySection = `<div class="card" style="margin-bottom:12px;background:rgba(75,159,231,.05);border-color:#4b9fe7"><h3 style="margin:0 0 8px">📋 Pedidos diarios (${dailyOrders.length}) · ${dailyGenerated}/${dailyLimit} generados hoy</h3>${dailyOrders.length ? `<div class="cards">${dailyOrders.map(orderCard).join("")}</div>` : `<p class="muted">No hay pedidos diarios sin aceptar.</p>`}</div>`;
                 const officeSection = state.commercialOffices?.length > 0 ? `<div class="card" style="margin-bottom:12px;background:rgba(53,199,89,.05);border-color:#35c759"><h3 style="margin:0 0 8px">🏢 Pedidos de oficinas comerciales (${officeOrders.length}) · ${officeGenerated}/${officeLimit} generados hoy</h3>${officeOrders.length ? `<div class="cards">${officeOrders.map(orderCard).join("")}</div>` : `<p class="muted">No hay pedidos de oficinas sin aceptar.</p>`}</div>` : "";
@@ -6808,7 +6810,7 @@
                 const itvDue = t.nextItv && t.nextItv <= Date.now();
                 const itvBtn = (t.itvPending || itvDue) ? `<button class="primary small" data-action="pass-itv" data-id="${t.id}" data-kind="truck">Pasar ITV (100 €)</button>` : "";
                 const reviewBtn = `<button class="small" data-action="maintain-truck" data-id="${t.id}" ${t.status !== "Base" ? "disabled" : ""}>Revisión ${t.maintenanceHours}h</button>`;
-                return `<tr><td><strong>${t.plate}</strong><br>${t.brand} ${t.model}<br><span class="muted">Km acumulados: ${fmtNum(t.km || 0)}</span></td><td>${t.acquisition === "rent" ? `Renting ${fmtMoney(t.rentMonthly)}/mes` : "Propiedad"}<br><span class="muted">Seguro: ${fmtMoney(t.insuranceMonthly || TRUCK_MONTHLY_INSURANCE)}/mes · Fin renting: ${t.rentEnd ? fmtDate(t.rentEnd) : "-"}</span></td><td>${t.consumption} L/100km<br>Depósito ${fmtLiters(t.tankCapacity)}</td><td><div class="progress"><div class="bar ${fuelPct < 20 ? "danger" : fuelPct < 45 ? "warn" : "ok"}" style="width:${fuelPct}%"></div></div>${fmtLiters(t.fuel)}</td><td><div class="progress"><div class="bar ${t.wear > 55 ? "danger" : t.wear > 35 ? "warn" : "ok"}" style="width:${t.wear}%"></div></div>${t.wear.toFixed(1)}%</td><td>${tireBar}</td><td>${fmtDate(t.nextItv)}${t.itvPending ? '<br><span class="badge danger">Pendiente</span>' : ""}</td><td>${t.status}<br><span class="muted">${t.location || ""}</span></td><td>${reviewBtn}${tireBtn}${itvBtn}${baseAction}</td></tr>`;
+                return `<tr><td><strong>${t.plate}</strong><br>${t.brand} ${t.model}<br><span class="muted">Km acumulados: ${fmtNum(t.km || 0)}</span></td><td>${t.acquisition === "rent" ? `Renting ${fmtMoney(t.rentMonthly)}/mes` : "Propiedad"}<br><span class="muted">Seguro: ${fmtMoney(t.insuranceMonthly || TRUCK_MONTHLY_INSURANCE)}/mes · Fin renting: ${t.rentEnd ? fmtDate(t.rentEnd) : "-"}</span></td><td>${t.consumption} L/100km<br>Depósito ${fmtLiters(t.tankCapacity)}</td><td><div class="progress"><div class="bar ${fuelPct < 20 ? "danger" : fuelPct < 45 ? "warn" : "ok"}" style="width:${fuelPct}%"></div></div>${fmtLiters(t.fuel)}</td><td><div class="progress"><div class="bar ${t.wear > 55 ? "danger" : t.wear > 35 ? "warn" : "ok"}" style="width:${t.wear}%"></div></div>${t.wear.toFixed(1)}%</td><td>${tireBar}</td><td>${fmtDate(t.nextItv)}${t.itvPending ? '<br><span class="badge danger">Pendiente</span>' : ""}</td><td>${t.status === "Mantenimiento" ? `<span style="color:#ff8c1a;font-weight:700">🔧 En mantenimiento</span>` : t.status}<br><span class="muted">${t.location || ""}</span></td><td>${reviewBtn}${tireBtn}${itvBtn}${baseAction}</td></tr>`;
             }).join("");
             const cisternRows = state.cisterns.map(c => {
                 const baseAction = c.acquisition === "rent" ? `<button class="danger small" data-action="finalize-renting" data-kind="cistern" data-id="${c.id}" ${c.status !== "Base" ? "disabled" : ""}>Finalizar renting</button>` : `<button class="small" data-action="sell-vehicle" data-kind="cistern" data-id="${c.id}" ${c.status !== "Base" ? "disabled" : ""}>Vender ${fmtMoney(resaleValue(c))}</button>`;
@@ -6820,7 +6822,7 @@
                 const itvBtn = (c.itvPending || itvDue) ? `<button class="primary small" data-action="pass-itv" data-id="${c.id}" data-kind="cistern">Pasar ITV (100 €)</button>` : "";
                 const reviewHours = c.maintenanceHours || 4;
                 const reviewBtn = `<button class="small" data-action="maintain-cistern" data-id="${c.id}" ${c.status !== "Base" ? "disabled" : ""}>Revisión ${reviewHours}h</button>`;
-                return `<tr><td><strong>${c.plate}</strong><br>${c.brand} ${c.model}<br><span class="muted">Km acumulados: ${fmtNum(c.km || 0)}</span></td><td>${fmtLiters(c.capacity)}${c.duoTrailer ? "<br><span class='muted'>Ocupa 2 plazas</span>" : ""}</td><td>${c.acquisition === "rent" ? `Renting ${fmtMoney(c.rentMonthly)}/mes` : "Propiedad"}</td><td><div class="progress"><div class="bar ${c.wear > 55 ? "danger" : c.wear > 35 ? "warn" : "ok"}" style="width:${c.wear}%"></div></div>${c.wear.toFixed(1)}%</td><td>${tireBar}</td><td>${fmtDate(c.nextItv)}${c.itvPending ? '<br><span class="badge danger">Pendiente</span>' : ""}</td><td>${c.status}</td><td>${reviewBtn}${tireBtn}${itvBtn}${baseAction}</td></tr>`;
+                return `<tr><td><strong>${c.plate}</strong><br>${c.brand} ${c.model}<br><span class="muted">Km acumulados: ${fmtNum(c.km || 0)}</span></td><td>${fmtLiters(c.capacity)}${c.duoTrailer ? "<br><span class='muted'>Ocupa 2 plazas</span>" : ""}</td><td>${c.acquisition === "rent" ? `Renting ${fmtMoney(c.rentMonthly)}/mes` : "Propiedad"}</td><td><div class="progress"><div class="bar ${c.wear > 55 ? "danger" : c.wear > 35 ? "warn" : "ok"}" style="width:${c.wear}%"></div></div>${c.wear.toFixed(1)}%</td><td>${tireBar}</td><td>${fmtDate(c.nextItv)}${c.itvPending ? '<br><span class="badge danger">Pendiente</span>' : ""}</td><td>${c.status === "Mantenimiento" ? `<span style="color:#ff8c1a;font-weight:700">🔧 En mantenimiento</span>` : c.status}</td><td>${reviewBtn}${tireBtn}${itvBtn}${baseAction}</td></tr>`;
             }).join("");
             const driverRows = state.workers.filter(w => w.role === "Conductor").map(d => {
                 const daily = d.drivingToday || 0;
@@ -6914,8 +6916,16 @@
                         d.restLocked = false;
                         d.lastRestEndTs = nowT;
                     }
-                    // Always show rest badge when driver is in base so player can see elapsed rest time
-                    restBadge = `<br><span style="font-size:11px;color:${tachoReady ? "#35c759" : "#8f9baa"}">😴 ${fmtDurationHours(Math.min(restSoFar, 24))} descansado${tachoReady ? " · ✅ Tacho a 0" : ` · reset en ${fmtDurationHours(Math.max(0, TACHO_DAILY_REST_HOURS - restSoFar))}`}</span>`;
+                    // Unified tacho display:
+                    // - If driver has accumulated hours and is resting toward reset → "🛏 Tacógrafo a 0 en Xh"
+                    // - If fully rested → "✅ tacógrafo a 0"
+                    const hasHours = (d.drivingToday || 0) > 0.05;
+                    if (tachoReady || !hasHours) {
+                        restBadge = `<br><span style="font-size:11px;color:#35c759">😴 ${fmtDurationHours(Math.min(restSoFar, 24))} descansado · ✅ tacógrafo a 0</span>`;
+                    } else {
+                        const toReset = Math.max(0, TACHO_DAILY_REST_HOURS - restSoFar);
+                        restBadge = `<br><span style="font-size:11px;color:#e8a504">🛏 Tacógrafo a 0 en ${fmtDurationHours(toReset)}</span>`;
+                    }
                 }
                 // Rest lock: only available for drivers IN BASE that are resting (not in trip)
                 const isResting2 = !d.currentTripId && d.drivingToday > 0;
@@ -6954,11 +6964,17 @@
             // Summary line: trucks parked at base (available, not on a trip) over total
             const trucksAvailable = state.fleet.filter(t => t.status === "Base").length;
             const trucksTotal = state.fleet.length;
-            const cisternsAvailable = state.cisterns.filter(c => c.status === "Base").length;
-            const cisternsTotal = state.cisterns.length;
+            // Separate cisterns into normal vs Jet A-1 so the player isn't confused
+            const normalCisternsAvail = state.cisterns.filter(c => c.status === "Base" && !c.jetA1).length;
+            const normalCisternsTotal = state.cisterns.filter(c => !c.jetA1).length;
+            const jetCisternsAvail = state.cisterns.filter(c => c.status === "Base" && c.jetA1).length;
+            const jetCisternsTotal = state.cisterns.filter(c => c.jetA1).length;
             const driversAvailable = state.workers.filter(w => w.role === "Conductor" && w.status === "Disponible" && !w.restLocked).length;
             const driversTotal = state.workers.filter(w => w.role === "Conductor").length;
-            const availabilityPanel = `<div class="card" style="border-color:rgba(75,159,231,.4);background:rgba(75,159,231,.06)"><p style="margin:0;font-size:14px">🚛 Tractoras disponibles en base: <strong>${trucksAvailable}/${trucksTotal}</strong> &nbsp;·&nbsp; 🛢️ Cisternas: <strong>${cisternsAvailable}/${cisternsTotal}</strong> &nbsp;·&nbsp; 👷 Conductores libres: <strong>${driversAvailable}/${driversTotal}</strong></p><p class="muted" style="margin:4px 0 0;font-size:12px">Disponibles = parados en base, listos para despachar (no están en ruta ni en descanso).</p></div>`;
+            const mechAvailable = state.workers.filter(w => w.role === "Mecánico" && w.status === "Disponible").length;
+            const mechTotal = state.workers.filter(w => w.role === "Mecánico").length;
+            const jetCisternLine = jetCisternsTotal > 0 ? ` &nbsp;·&nbsp; ✈️ Remolques Jet A-1: <strong>${jetCisternsAvail}/${jetCisternsTotal}</strong>` : "";
+            const availabilityPanel = `<div class="card" style="border-color:rgba(75,159,231,.4);background:rgba(75,159,231,.06)"><p style="margin:0;font-size:14px">🚛 Tractoras disponibles: <strong>${trucksAvailable}/${trucksTotal}</strong> &nbsp;·&nbsp; 🛢️ Cisternas normales: <strong>${normalCisternsAvail}/${normalCisternsTotal}</strong>${jetCisternLine}</p><p style="margin:6px 0 0;font-size:14px">👷 Conductores libres: <strong>${driversAvailable}/${driversTotal}</strong> &nbsp;·&nbsp; 🔧 Mecánicos disponibles: <strong>${mechAvailable}/${mechTotal}</strong></p><p class="muted" style="margin:4px 0 0;font-size:12px">Disponibles = parados en base, listos para despachar (no están en ruta ni en descanso).</p></div>`;
             $("fleetContent").innerHTML = `${availabilityPanel}${pendingDeliveriesPanel}${activeTripsPanel}<h3>Cabezas tractoras</h3><div class="table-wrap"><table><thead><tr><th>Vehículo</th><th>Modalidad</th><th>Consumo</th><th>Gasoil</th><th>Desgaste</th><th>Neumáticos</th><th>Próxima ITV</th><th>Estado</th><th>Acción</th></tr></thead><tbody>${truckRows || `<tr><td colspan="9">Sin tractoras.</td></tr>`}</tbody></table></div><h3>Cisternas ADR</h3><div class="table-wrap"><table><thead><tr><th>Cisterna</th><th>Capacidad</th><th>Modalidad</th><th>Desgaste</th><th>Neumáticos</th><th>Próxima ITV</th><th>Estado</th><th>Acción</th></tr></thead><tbody>${cisternRows || `<tr><td colspan="8">Sin cisternas.</td></tr>`}</tbody></table></div><h3>🚛 Tacógrafo conductores</h3><p class="muted" style="font-size:13px;margin-bottom:8px">Verde = OK · Amarillo = cerca del límite · Rojo = límite alcanzado.<br><strong>Individual:</strong> Máx 9h de conducción diaria · Al agotarse: descanso obligatorio de 11h. La barra de 9h no se resetea a 0 hasta haber completado las 11h reales de descanso.<br><strong>Conducción en equipo:</strong> Cada conductor tiene sus propias 9h. Al agotar uno cambia automáticamente al otro. Cuando ambos agotan sus 9h el camión para 11h obligatorias. 🚛 = conduciendo · 🔧 = copiloto.</p><div class="table-wrap"><table><thead><tr><th>Conductor</th><th>Actividad</th><th>Conducción diaria (9h max)</th><th>Bloqueo</th></tr></thead><tbody>${driverRows || `<tr><td colspan="4">Sin conductores.</td></tr>`}</tbody></table></div>`;
         }
 
@@ -8024,6 +8040,7 @@
         // ALLIANCES (Phase 1)
         // ============================================================================
         let _allianceTab = "mine";
+        let _allianceSubTab = "general"; // general | gas | airport | ranking
         let _allianceData = null; // cached alliance data
         let _inAlliance = false;
         let _activeAlliancePrize = null; // {id, expiresAt}
@@ -8414,7 +8431,12 @@
                     <h3>📝 Descripción</h3>
                     <p style="white-space:pre-wrap">${a.description.replace(/[<>]/g, '')}</p>
                 </div>` : "");
-            el.innerHTML = `
+            // Sub-tab navigation buttons
+            const subTabBtn = (id, label) => `<button class="small ${_allianceSubTab === id ? "primary" : "ghost"}" data-action="alliance-subtab" data-subtab="${id}" style="flex:1;min-width:0">${label}</button>`;
+            const subTabBar = `<div class="card" style="padding:8px"><div class="row" style="gap:4px;flex-wrap:wrap">${subTabBtn("general", "🏰 General")}${subTabBtn("gas", "⛽ Gasolineras")}${subTabBtn("airport", "🛫 Aeropuerto")}${subTabBtn("ranking", "📊 Ranking y fondos")}</div></div>`;
+
+            // GENERAL tab: header, description, owner panel, private fund, prizes, requests, members
+            const generalTab = `
                 <div class="card">
                     <h3>🏰 ${a.name}</h3>
                     <p>Dinero acumulado: <strong>${fmtMoney4(a.balance || 0)}</strong> · Miembros: <strong>${members.length} / ${a.maxSlots}</strong> · Creada: ${fmtDate(a.createdAt)}</p>
@@ -8425,9 +8447,60 @@
                     </div>` : `<button class="danger small" data-action="alliance-leave">Salir de la alianza</button>`}
                 </div>
                 ${descriptionSection}
-                ${ownerSection}
-                ${fundSection}
+                ${isOwner ? `<div class="card" style="border-color:#4b9fe7;background:rgba(75,159,231,.08)">
+                    <h3>🏦 Fondo Privado</h3>
+                    <p>Disponible: <strong>${fmtMoney4(a.privateFund || 0)}</strong></p>
+                    <p class="muted" style="font-size:12px">Recibe los beneficios de las gasolineras y las recompensas de contratos aeroportuarios (1.000 € por viaje completado). NO se puede repartir. Solo se usa para construir/ampliar gasolineras, ampliar plazas de la alianza y activar el antimultas ADR 24h. 🏆 El RANKING de alianzas se basa en el saldo de este fondo.</p>
+                    <button class="ghost small" data-action="private-fund-history">📜 Ver historial (7 días)</button>
+                </div>
+                <div class="card" style="border-color:#e8a504;background:rgba(232,165,4,.08)">
+                    <h3>🎁 Premios de alianza</h3>
+                    ${prizeActive ? `<p class="badge ok">✅ Premio activo: 24h sin multas ADR · quedan ~${prizeRemainingH}h</p>` : ""}
+                    <p style="margin:8px 0 4px"><strong>🚫 24 horas sin multas ADR</strong> — ${fmtMoney(5000)}</p>
+                    <p class="muted" style="font-size:12px">Durante 24 horas reales, ningún miembro recibe multas por circular durante una prohibición ADR (controles en carretera). Se paga del Fondo Privado.</p>
+                    <button class="primary small" data-action="alliance-activate-prize" data-prize="no-fines-24h" ${(a.privateFund||0) >= 5000 && !prizeActive ? "" : "disabled"}>${prizeActive ? "Ya activo" : `Activar (${fmtMoney(5000)})`}</button>
+                </div>` : `<div class="card" style="border-color:#4b9fe7;background:rgba(75,159,231,.08)">
+                    <h3>🏦 Fondo Privado</h3>
+                    <p>Disponible: <strong>${fmtMoney4(a.privateFund || 0)}</strong></p>
+                    <p class="muted" style="font-size:12px">Recibe los beneficios de las gasolineras y las recompensas de contratos aeroportuarios. Es el saldo que determina la posición de la alianza en el ranking.</p>
+                </div>
+                ${prizeActive ? `<div class="card" style="border-color:#35c759;background:rgba(53,199,89,.08)"><p class="badge ok">✅ Premio de alianza activo: 24h sin multas ADR · quedan ~${prizeRemainingH}h</p></div>` : ""}`}
                 ${requestsSection}
+                <div class="card">
+                    <h3>👥 Miembros (${members.length}/${a.maxSlots})</h3>
+                    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+                        <thead><tr style="color:var(--muted);text-align:left;border-bottom:1px solid var(--line)"><th style="padding:6px 8px">Jugador</th><th style="padding:6px 8px">Rol</th><th style="padding:6px 8px">Conexión</th><th style="padding:6px 8px">Acción</th></tr></thead>
+                        <tbody>${memberRows || `<tr><td colspan="4">Sin miembros</td></tr>`}</tbody>
+                    </table></div>
+                </div>`;
+
+            // RANKING tab: shared fund, owner balance, weekly ranking
+            const rankingTab = `
+                ${ownerSection}
+                ${isOwner ? `<div class="card" style="border-color:#9c27b0;background:rgba(156,39,176,.08)">
+                    <h3>💰 Fondo Compartido</h3>
+                    <p>Disponible: <strong>${fmtMoney4(a.balance || 0)}</strong></p>
+                    <p class="muted" style="font-size:12px">Cada km que conduce cualquier miembro suma 0,001€ a este fondo. Es el ÚNICO que se puede repartir entre los jugadores. La posición en el ranking NO depende de este fondo, sino del Fondo Privado.</p>
+                    ${(a.balance || 0) > 0 ? `<button class="primary small" data-action="alliance-distribute-fund">🎁 Repartir entre miembros</button>` : `<p class="muted">Aún no hay saldo para repartir.</p>`}
+                </div>` : `<div class="card" style="border-color:#9c27b0;background:rgba(156,39,176,.08)">
+                    <h3>💰 Fondo Compartido</h3>
+                    <p>Disponible: <strong>${fmtMoney4(a.balance || 0)}</strong></p>
+                    <p class="muted" style="font-size:12px">Se genera con los 0,001€ por km que conduce cada miembro. Es el dinero que el propietario puede repartir entre los jugadores de la alianza.</p>
+                </div>`}
+                <div class="card">
+                    <div class="row" style="justify-content:space-between;align-items:center">
+                        <h3 style="margin:0">📊 Ranking semanal interno</h3>
+                        <button class="ghost small" data-action="refresh-weekly-ranking">🔄 Actualizar</button>
+                    </div>
+                    <p class="muted" style="font-size:12px">Cuánto ha aportado cada miembro al fondo común esta semana (0,001€/km). Se reinicia cada lunes a las 00:00. Solo lo veis los miembros de la alianza. No afecta al saldo total acumulado de la alianza.</p>
+                    <div id="weeklyRankingList"><p class="muted">Pulsa "Actualizar" para ver el ranking de esta semana.</p></div>
+                </div>`;
+
+            el.innerHTML = `
+                ${subTabBar}
+                <div ${_allianceSubTab !== "general" ? "style=display:none" : ""}>${generalTab}</div>
+                <div ${_allianceSubTab !== "ranking" ? "style=display:none" : ""}>${rankingTab}</div>
+                <div ${_allianceSubTab !== "gas" ? "style=display:none" : ""}>
                 <div class="card" id="gasStationsPanel" style="border-color:#35c759;background:rgba(53,199,89,.06)">
                     <div class="row" style="justify-content:space-between;align-items:center">
                         <h3 style="margin:0">⛽ Gasolineras de la alianza</h3>
@@ -8445,6 +8518,8 @@
                     <p class="muted" style="font-size:12px">Pedidos de reabastecimiento pendientes. Acéptalos para llevarlos a la gasolinera con tus camiones (solo camiones normales, no Duo). Pasan a Pedidos → Aceptados.</p>
                     <div id="gasOrdersList"><p class="muted">Pulsa "Actualizar" para ver los pedidos.</p></div>
                 </div>
+                </div>
+                <div ${_allianceSubTab !== "airport" ? "style=display:none" : ""}>
                 <div class="card" id="airportContractsPanel" style="border-color:#4b9fe7;background:rgba(75,159,231,.06)">
                     <div class="row" style="justify-content:space-between;align-items:center">
                         <h3 style="margin:0">🛫 Contratos aeroportuarios</h3>
@@ -8455,20 +8530,6 @@
                         : `<p class="muted" style="font-size:12px">Construye la oficina aeroportuaria para que tu alianza pueda ver y aceptar contratos de Jet A-1.</p>${isOwner ? `<button class="primary small" data-action="build-airport-office">🛫 Construir oficina aeroportuaria</button>` : `<p class="muted" style="font-size:12px">Solo el propietario puede construirla.</p>`}`}
                     <div id="airportContractsList">${a.airportOffice ? `<p class="muted">Pulsa "Actualizar" para ver los contratos.</p>` : ""}</div>
                 </div>
-                <div class="card">
-                    <div class="row" style="justify-content:space-between;align-items:center">
-                        <h3 style="margin:0">📊 Ranking semanal interno</h3>
-                        <button class="ghost small" data-action="refresh-weekly-ranking">🔄 Actualizar</button>
-                    </div>
-                    <p class="muted" style="font-size:12px">Cuánto ha aportado cada miembro al fondo común esta semana (0,001€/km). Se reinicia cada lunes a las 00:00. Solo lo veis los miembros de la alianza. No afecta al saldo total acumulado de la alianza.</p>
-                    <div id="weeklyRankingList"><p class="muted">Pulsa "Actualizar" para ver el ranking de esta semana.</p></div>
-                </div>
-                <div class="card">
-                    <h3>👥 Miembros (${members.length}/${a.maxSlots})</h3>
-                    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
-                        <thead><tr style="color:var(--muted);text-align:left;border-bottom:1px solid var(--line)"><th style="padding:6px 8px">Jugador</th><th style="padding:6px 8px">Rol</th><th style="padding:6px 8px">Conexión</th><th style="padding:6px 8px">Acción</th></tr></thead>
-                        <tbody>${memberRows || `<tr><td colspan="4">Sin miembros</td></tr>`}</tbody>
-                    </table></div>
                 </div>
             `;
             // Auto-load weekly ranking
@@ -11397,6 +11458,14 @@
             if (!selectedWarehouse) return notify("Selecciona una ubicacion", "Haz click en el mapa para ubicar la oficina comercial.", "warn", true);
             const limit = commercialOfficeLimit();
             if ((state.commercialOffices || []).length >= limit) return notify("Limite de oficinas", `Nivel ${state.level}: maximo ${limit} oficinas comerciales.`, "warn", true);
+            // Distance limit: office must be within 2000 km of the player's base
+            const base = state.warehouse;
+            if (base && base.lat && base.lng) {
+                const officeKm = haversineKm(base.lat, base.lng, selectedWarehouse.lat, selectedWarehouse.lng);
+                if (officeKm > 2000) {
+                    return notify("Oficina demasiado lejos", `La oficina comercial no puede estar a más de 2.000 km de tu base. La ubicación elegida está a ${Math.round(officeKm)} km. Elige un punto más cercano a tu base.`, "warn", true);
+                }
+            }
             const officeCost = commercialOfficeBuildCost();
             if (state.bank.balance < officeCost) return notify("Saldo insuficiente", `La oficina comercial cuesta ${fmtMoney(officeCost)}.`, "danger", true);
             const officeName = escapeHtml(($("setupOfficeName")?.value || "").trim() || `Oficina comercial ${state.commercialOffices.length + 1}`);
@@ -11649,6 +11718,7 @@
             if (action === "accepted-type") { _acceptedType = btn.dataset.type || null; renderOrders(); return; }
             // ALLIANCE handlers (Phase 1)
             if (action === "alliance-tab") { _allianceTab = btn.dataset.tab || "mine"; renderAlliance(); return; }
+            if (action === "alliance-subtab") { _allianceSubTab = btn.dataset.subtab || "general"; renderAlliance(); return; }
             if (action === "alliance-create") return createAlliance();
             if (action === "alliance-search") { const inp = document.getElementById("allianceSearchInput"); executeAllianceSearch(inp ? inp.value.trim() : ""); return; }
             if (action === "alliance-search-all") { const inp = document.getElementById("allianceSearchInput"); if (inp) inp.value = ""; executeAllianceSearch(""); return; }
