@@ -493,7 +493,7 @@
                     <div class="mhud" id="mobileAdrHud">ADR OK</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v2.1</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v2.3</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -521,7 +521,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v2.1</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v2.3</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -9610,6 +9610,41 @@
             $("modalBackdrop").classList.remove("hidden");
         }
         function closeModal() { $("modalBackdrop").classList.add("hidden"); }
+
+        // ===== News popup — shown once per player per news version =====
+        const CURRENT_NEWS_VERSION = "2026-06-news-1";
+        function showNewsPopupIfNeeded() {
+            try {
+                if (state.lastNewsSeen === CURRENT_NEWS_VERSION) return;
+                const newsHtml = `
+                <div id="newsPopupOverlay" style="position:fixed;inset:0;z-index:190000;background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;padding:16px">
+                    <div style="background:#11161d;border:2px solid #ff7a1a;border-radius:14px;max-width:560px;width:100%;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
+                        <div style="padding:18px 22px;border-bottom:1px solid rgba(255,122,26,.3);background:rgba(255,122,26,.08)">
+                            <h2 style="margin:0;color:#ff7a1a;font-size:20px">🎉 Novedades de ECACH Logistic</h2>
+                        </div>
+                        <div style="padding:18px 22px;overflow-y:auto;color:#d8dee6;line-height:1.6;font-size:14px">
+                            <p style="margin:0 0 14px"><strong style="color:#ff9d4d">🚛 Flota organizada por pestañas</strong><br>La sección Flota ahora tiene pestañas: En ruta, Tractoras, Remolques y Tacógrafos. Ya no hay que bajar tanto para encontrar lo que buscas.</p>
+                            <p style="margin:0 0 14px"><strong style="color:#ff9d4d">📊 Panel de disponibilidad más claro</strong><br>Tractoras, cisternas, remolques Jet A-1, conductores y mecánicos disponibles, cada uno en su línea y fáciles de leer de un vistazo.</p>
+                            <p style="margin:0 0 14px"><strong style="color:#ff9d4d">⚔️ Alianza organizada por pestañas</strong><br>General, Gasolineras, Aeropuerto y Ranking y fondos, cada cosa en su sitio.</p>
+                            <p style="margin:0 0 14px"><strong style="color:#ff9d4d">📌 Informe de gastos fijos mensuales</strong><br>En Finanzas → Resumen verás el total de gastos fijos al mes (salarios, seguros, rentings, alquileres, oficinas, cuota del crédito...) para saber cuánto necesitas facturar.</p>
+                            <p style="margin:0 0 14px"><strong style="color:#ff9d4d">🔧 Mantenimiento más claro</strong><br>Los vehículos en mantenimiento se marcan en naranja con la hora exacta a la que termina la revisión.</p>
+                            <p style="margin:0 0 6px"><strong style="color:#ff9d4d">📬 Bandeja más limpia</strong><br>Eliminados los correos del clima y de pedidos aceptados para que no tapen los mensajes importantes.</p>
+                            <p style="margin:18px 0 0;color:#ff9d4d;font-size:14px;font-weight:600;text-align:center">¡Gracias por jugar a ECACH Logistic y por ayudarnos a mejorar este proyecto! 🚛💛</p>
+                        </div>
+                        <div style="padding:14px 22px;border-top:1px solid rgba(255,255,255,.08)">
+                            <button onclick="dismissNewsPopup()" style="width:100%;background:#ff7a1a;color:#1a0e05;border:none;padding:14px;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer">OK, entendido</button>
+                        </div>
+                    </div>
+                </div>`;
+                document.body.insertAdjacentHTML("beforeend", newsHtml);
+            } catch(e) {}
+        }
+        function dismissNewsPopup() {
+            const el = document.getElementById("newsPopupOverlay");
+            if (el) el.remove();
+            state.lastNewsSeen = CURRENT_NEWS_VERSION;
+            saveGame(true);
+        }
         // ============= I18N: Full English translation map =============
         const I18N_EN = {
             // Static section headings & subtitles
@@ -12522,6 +12557,7 @@
             } catch(e) {}
         }
         setTimeout(_refreshAlliancePrize, 2000); // load 2s after game starts — before any trips tick
+        setTimeout(showNewsPopupIfNeeded, 2500); // show news popup once per player
         setInterval(_refreshAlliancePrize, 5 * 60 * 1000); // refresh every 5 min
 
 
