@@ -510,7 +510,7 @@
                     <button class="nav-btn" data-section="clients">🤝 <span class="nav-text">Clientes</span></button>
                     <button class="nav-btn" data-section="shop">🛒 <span class="nav-text">Tienda</span></button>
                     <button class="nav-btn" data-section="wheel">🎡 <span class="nav-text">Ruleta</span></button>
-                    <button class="nav-btn" data-section="slots">🎰 <span class="nav-text">Tragaperras</span></button>
+                    <button class="nav-btn" data-section="casino">🎰 <span class="nav-text">Casino</span></button>
                     <button class="nav-btn" data-section="alliance">⚔️ <span class="nav-text">Alianzas</span></button>
                     <button class="nav-btn" data-section="email">✉️ <span class="nav-text">Email</span></button>
                     <button class="nav-btn" data-section="messages">💬 <span class="nav-text">Mensajes</span></button>
@@ -534,7 +534,7 @@
                 <button class="nav-btn" data-section="clients">🤝 <span class="nav-text">Clientes</span></button>
                 <button class="nav-btn" data-section="shop">🛒 <span class="nav-text">Tienda</span></button>
                 <button class="nav-btn" data-section="wheel">🎡 <span class="nav-text">Ruleta</span></button>
-                <button class="nav-btn" data-section="slots">🎰 <span class="nav-text">Tragaperras</span></button>
+                <button class="nav-btn" data-section="casino">🎰 <span class="nav-text">Casino</span></button>
                 <button class="nav-btn" data-section="alliance">⚔️ <span class="nav-text">Alianzas</span></button>
                 <button class="nav-btn" data-section="email">✉️ <span class="nav-text">Email corporativo</span></button>
                 <button class="nav-btn" data-section="messages">💬 <span class="nav-text">Mensajes</span></button>
@@ -606,7 +606,7 @@
             <section id="clients" class="view"><div class="panel"><div class="panel-title"><div><h2>🤝 Clientes diarios</h2><p>Clientes con pedidos abiertos y condiciones por km.</p></div></div><div id="clientsContent" class="stack"></div></div></section>
             <section id="shop" class="view"><div class="panel"><div class="panel-title"><div><h2>🛒 Tienda y ampliaciones</h2><p>Compra o renting de tractoras, cisternas y ampliaciones.</p></div></div><div class="row" style="gap:8px;margin-bottom:12px"><button id="tab-shop-trucks" class="primary small" data-action="shop-tab" data-tab="trucks">🚛 Tractoras</button><button id="tab-shop-used" class="ghost small" data-action="shop-tab" data-tab="used">🔧 Segunda mano</button><button id="tab-shop-cisterns" class="ghost small" data-action="shop-tab" data-tab="cisterns">🛢️ Remolques</button></div><div id="shopContent" class="stack"></div></div></section>
             <section id="wheel" class="view"><div class="panel"><div class="panel-title"><div><h2>🎡 Ruleta de la suerte</h2><p>Un intento cada 24 horas con premios temporales.</p></div></div><div id="wheelContent" class="stack"></div></div></section>
-            <section id="slots" class="view"><div class="panel"><div class="panel-title"><div><h2>🎰 Tragaperras</h2><p>Cada tirada cuesta 100 €. Consigue 3 símbolos iguales en la fila central para ganar.</p></div></div><div id="slotsContent" class="stack"></div></div></section>
+            <section id="casino" class="view"><div class="panel"><div class="panel-title"><div><h2>🎰 Casino</h2><p>Juegos de azar. Disponible a partir del nivel 3.</p></div></div><div class="row" style="gap:8px;margin-bottom:12px"><button id="tab-casino-slots" class="primary small" data-action="casino-tab" data-tab="slots">🎰 Tragaperras</button><button id="tab-casino-trilero" class="ghost small" data-action="casino-tab" data-tab="trilero">🎩 Trilero</button></div><div id="casinoContent" class="stack"></div></div></section>
             <section id="alliance" class="view"><div class="panel"><div class="panel-title"><div><h2>⚔️ Alianzas</h2><p>Únete o crea una alianza para colaborar y acumular ganancias en común.</p></div></div><div class="row" style="gap:8px;margin-bottom:12px;flex-wrap:wrap"><button id="tab-alliance-mine" class="primary small" data-action="alliance-tab" data-tab="mine">🏰 Mi alianza</button><button id="tab-alliance-search" class="ghost small" data-action="alliance-tab" data-tab="search">🔍 Buscar</button></div><div id="allianceContent" class="stack"><p class="muted">Cargando...</p></div></div></section>
             <section id="email" class="view"><div class="panel"><div class="panel-title"><div><h2>✉️ Email corporativo</h2><p>Pedidos, facturas, bajas, avisos y mensajes de otros jugadores.</p></div><div class="row" style="gap:6px"><button class="primary" data-action="send-player-message">✉️ Escribir a un jugador</button><button data-action="mark-mails-read">Marcar todo como leído</button></div></div><div id="emailContent" class="email-list"></div></div></section>
             <section id="messages" class="view"><div class="panel"><div class="panel-title"><div><h2>💬 Mensajes</h2><p>Mensajes enviados y recibidos con otros jugadores.</p></div><div class="row" style="gap:6px"><button class="primary" data-action="send-player-message">✉️ Nuevo mensaje</button><button class="ghost" data-action="refresh-messages">🔄 Actualizar</button></div></div><div style="margin-bottom:12px"><input type="text" id="messageSearch" placeholder="🔍 Buscar por nombre de empresa..." style="width:100%;padding:10px;background:#1e2530;border:1px solid var(--line);color:var(--text);border-radius:8px" oninput="renderMessages()"></div><div id="messagesContent" class="stack"><p class="muted">Pulsa "Actualizar" para cargar tus mensajes.</p></div></div></section>
@@ -1435,6 +1435,7 @@
             ["11. Neumáticos cada 100.000 km", "Tractoras y remolques cambian ruedas a los 100.000 km. Aviso preventivo a los 90.000 km. Si compras un camión de segunda mano con las ruedas muy gastadas, te avisamos antes de comprarlo.\\n\\n🚛 TRACTORA (mismo precio sea renting o compra):\\n· Cambio urgente (1 hora): 3.000 €\\n· Cambio estándar (2 horas): 2.400 €\\nLa tractora Duo usa las mismas ruedas que una normal, así que cuesta lo mismo.\\n\\n🛢️ REMOLQUE / CISTERNA (una sola opción, 2 horas):\\n· Si es de RENTING: GRATIS (lo cubre la empresa de renting).\\n· Si es de COMPRA: 3.000 €.\\n· Remolque DUO: el doble de ruedas → el doble de precio. De renting sigue siendo GRATIS; de compra cuesta 6.000 €.\\n\\nDurante el cambio el vehículo queda parado el tiempo indicado."],
             ["11b. ⚠️ Cancelar un renting antes de tiempo", "Si cancelas el contrato de renting de una tractora o un remolque ANTES de la fecha máxima del contrato, pagarás una sanción de 15.000 € por cada vehículo (15.000 € por tractora y 15.000 € por remolque).\\n\\n· La sanción se paga AL MOMENTO al cancelar, junto con el mes final.\\n· Solo podrás cancelar si tienes saldo suficiente para no quedar en números negativos.\\n· Antes de confirmar verás un mensaje con el desglose (mes final + sanción), tu saldo actual y el saldo que te quedaría, para que decidas.\\n· Si el contrato ya ha llegado a su fecha de fin, no hay sanción."],
             ["12. Ruleta de la suerte", "Cada 24h puedes girar la ruleta. Hay premios temporales y contratos especiales.\n\nContrato 8 €/km: entra automáticamente en Pedidos aceptados con el icono de la ruleta. Es un viaje especial de máximo 200 km. Si no lo cargas a tiempo desaparece sin coste.\n\nContrato 2 viajes a 6 €/km: entran automáticamente 2 viajes al mismo destino y con carga en el puerto habitual, máximo 1.000 km. Tienes 5 días para servirlos. Si no completas todos a tiempo, los pedidos no servidos se cancelan y eliminan sin coste. Si sirves los dos, recibes una bonificación de 500 €.\n\nEl icono de ruleta en Aceptados sirve para distinguir estos contratos de los pedidos normales."],
+            ["12b. 🎰 Casino", "El casino se desbloquea en el nivel 3 y tiene dos juegos de azar:\n\n🎰 TRAGAPERRAS:\n· Coste: 100€ por tirada · Máximo 50 tiradas cada 24h\n· 3 rodillos con 6 símbolos distintos. Consigue 3 iguales en la fila central para ganar.\n· Premios desde 500€ (🍒🍒🍒) hasta 30.000€ (7️⃣7️⃣7️⃣)\n· Puedes tirar una a una o hasta 50 de golpe (puedes parar antes)\n\n🎩 TRILERO:\n· Coste: 10€ por tirada · Premio: 50€ · Máximo 50 tiradas cada 24h\n· Tres tazas se mezclan delante de tus ojos. Adivina cuál esconde la bolita.\n· Cuidado: la animación es real pero la casa siempre tiene ventaja. A la larga, se pierde más de lo que se gana."],
             ["13. Fidelidad de clientes", "Cada cliente permanente tiene un porcentaje de fidelidad (0% a 100%). Recibirás un email cada vez que suba o baje, indicando el cliente, el pedido y el motivo.\n\n📈 CÓMO SUBE (+1%):\n· Cada vez que entregas correctamente un pedido suyo con tu propia flota (camión de vuelta en base).\n\n📉 CÓMO BAJA (-1% por cada caso):\n· Por cada renovación diaria (20:00) que pase con un pedido suyo SIN COMPLETAR (lo tengas aceptado o sin aceptar). Es decir, cada día que no lo entregas, -1%.\n· Si rechazas un pedido suyo.\n· Si un pedido suyo caduca sin que lo aceptes.\n\n⏰ IMPORTANTE: no es por horas exactas. Lo que cuenta es que el pedido esté ENTREGADO (camión en base) antes de la siguiente renovación de las 20:00. Cada renovación que pase sin completarlo, -1%.\n\n⭐ CONTRATO FIJO AL 100%:\nAl llegar al 100%, el cliente te ofrece un contrato fijo: un pedido automático diario en Aceptados con +1€/km EXTRA sobre el precio habitual.\n\nSi la fidelidad baja del 90% teniendo contrato fijo, el cliente lo cancela automáticamente.\n\nLos clientes puntuales (de la ruleta) NO tienen fidelidad."],
             ["14. Banco y créditos", "El banco se desbloquea en nivel 3. Puedes solicitar créditos de hasta 100.000 € EN TODA LA PARTIDA.\n\n⚠️ LÍMITE DE PARTIDA MUY IMPORTANTE:\nEl máximo de 100.000€ es para TODA tu partida, no renovable. Puedes pedirlo de una vez o en varios créditos más pequeños, pero una vez que has solicitado 100.000€ en total (sumando todos), NO podrás pedir más créditos NUNCA, aunque los devuelvas. Esto evita que se pueda abusar pidiendo crédito una y otra vez.\n\nCondiciones:\n· Plazo: 24 meses\n· Interés: 6,5% ANUAL sobre el capital pendiente\n· Cuota mensual = capital fijo (importe ÷ 24) + intereses del mes\n· Los intereses van BAJANDO cada mes porque se calculan sobre lo que queda por pagar\n\nEjemplo con 100.000€ a 6,5% anual:\n· Capital fijo: ~4.167€/mes\n· Primera cuota: ~4.709€ (4.167€ capital + 542€ intereses)\n· Última cuota: ~4.190€\n· Intereses totales en 24 meses: ~6.770€\n· TOTAL a devolver: ~106.770€\n\nIMPORTANTE: solo se cobra UNA cuota mensual que ya incluye capital + intereses juntos. No hay cobros de intereses por separado.\n\nAntes de aceptar el crédito verás un resumen completo con el coste total a devolver y cuánto crédito te quedará disponible en la partida.\n\n💰 LIQUIDAR ANTICIPADO:\nPuedes pagar el crédito completo de golpe en cualquier momento desde Finanzas → Banco. Pagarás el capital pendiente + los intereses restantes (te mostrará el total exacto antes de confirmar).\n\n⛔ PROTECCIÓN ANTI-BANCARROTA: si no tienes saldo suficiente para cubrir la liquidación completa, el juego NO te dejará hacerlo, para que no acabes en números rojos.\n\n⚠️ OJO: liquidar un crédito anticipadamente NO te devuelve cupo de crédito. El límite de 100.000€ por partida cuenta el total que has pedido, no lo que debes.\n\nLa cuota se cobra automáticamente cada mes y aparece en el Calendario financiero. Puedes ver el estado de todos tus créditos en Finanzas → pestaña Resumen.\n\nUsa el crédito con cabeza: es tu única oportunidad de financiación en toda la partida."],
             ["15. Oficinas comerciales", "Las oficinas comerciales generan entre 1 y 2 pedidos diarios adicionales en un radio de 100 km alrededor de la oficina. Los pedidos aparecen en la pestaña 'Por aceptar' junto al resto.\n\nCada oficina tiene un coste mensual fijo de 5.000 €/mes. El primer mes se cobra 30 días después de la construcción.\n\n💰 COSTE DE CONSTRUCCIÓN: 10.000 € por oficina. A partir del NIVEL 5, cada oficina comercial nueva cuesta 50.000 € (las que ya tengas construidas no cambian).\n\nAl construir una oficina los pedidos se generan de inmediato ese mismo día. Puedes ver cuántos pedidos ha generado cada oficina en las métricas de la sección Pedidos.\n\n📅 PLAZOS DE ENTREGA:\n· Pedidos diarios normales y de ruleta: 5 días desde la aceptación\n· Pedidos de oficina comercial: 10 días desde la aceptación\n\nEl pedido cuenta como entregado cuando el camión VUELVE A BASE (no cuando descarga al cliente).\n\n⚠️ SANCIÓN por no entregar a tiempo: 1.500€ siempre\n· Si el pedido NO se despachó al vencer plazo: se cancela y pierdes 1.500€\n· Si el pedido está EN RUTA al vencer plazo: el viaje continúa, cobras el importe completo al llegar a base, pero pagas 1.500€ de sanción\n\nLos clientes de oficina comercial NO tienen fidelidad, así que no la pierdes por sanción."],
@@ -6532,7 +6533,7 @@
 
         function renderAll() {
             $("setupOverlay").classList.toggle("hidden", state.initialized);
-            renderDashboard(); renderOrders(); renderFleet(); renderStaff(); renderWarehouse(); renderFinance(); renderClients(); renderShop(); renderWheel(); renderSlots(); renderSettings(); renderLegal(); renderEmail(); renderTutorial(); renderAccount(); renderFast();
+            renderDashboard(); renderOrders(); renderFleet(); renderStaff(); renderWarehouse(); renderFinance(); renderClients(); renderShop(); renderWheel(); renderCasino(); renderSettings(); renderLegal(); renderEmail(); renderTutorial(); renderAccount(); renderFast();
             if (typeof updateMsgBell === "function") updateMsgBell();
             if (typeof applyTranslations === "function") applyTranslations();
         }
@@ -7666,14 +7667,42 @@
         let _slotsSpinning = false;   // a single animation is in progress
         let _slotsAutoRunning = false; // the 50-run loop is active
         let _slotsStopRequested = false; // user asked to stop the auto loop
-        function renderSlots() {
-            const el = $("slotsContent");
+        // ===== CASINO STATE =====
+        let _casinoTab = "slots"; // slots | trilero
+
+        // ===== TRILERO CONSTANTS =====
+        const TRILERO_COST = 10;
+        const TRILERO_PRIZE = 50;
+        const TRILERO_DAILY_LIMIT = 50;
+        const TRILERO_WIN_PROB = 0.28; // house edge: player wins ~28% long-term
+
+        function trileroSpinsLast24h() {
+            const t = state.trilero;
+            if (!t) return 0;
+            if (!Array.isArray(t.spinTimes)) t.spinTimes = [];
+            const cutoff = Date.now() - 24 * 3600 * 1000;
+            t.spinTimes = t.spinTimes.filter(x => x >= cutoff);
+            return t.spinTimes.length;
+        }
+
+        function renderCasino() {
+            const el = $("casinoContent");
             if (!el) return;
-            // Slots locked until level 3.
             if ((state.level || 1) < 3) {
-                el.innerHTML = `<div class="card" style="text-align:center"><h3>🔒 Tragaperras bloqueada</h3><p class="muted">La máquina tragaperras se desbloquea al alcanzar el <strong>nivel 3</strong>. Sigue creciendo para poder jugar.</p></div>`;
+                el.innerHTML = `<div class="card" style="text-align:center"><h3>🔒 Casino bloqueado</h3><p class="muted">El casino se desbloquea al alcanzar el <strong>nivel 3</strong>. Sigue creciendo para poder jugar.</p></div>`;
                 return;
             }
+            ["slots","trilero"].forEach(t => {
+                const btn = $(`tab-casino-${t}`);
+                if (btn) btn.className = t === _casinoTab ? "primary small" : "ghost small";
+            });
+            if (_casinoTab === "slots") renderSlotsTab(el);
+            else if (_casinoTab === "trilero") renderTrileroTab(el);
+        }
+
+        function renderSlotsTab(el) {
+            if (!el) return;
+            // Slots locked until level 3 (already checked by renderCasino but keep guard)
             state.slots = state.slots || { spins: 0, totalBet: 0, totalWon: 0, lastReels: ["🍒", "🍋", "🔔"], history: [] };
             const s = state.slots;
             const r = s.lastReels || ["🍒", "🍋", "🔔"];
@@ -7722,6 +7751,160 @@
                 <div class="card"><h3>Premios (3 iguales)</h3><div class="table-wrap"><table><tbody>${prizeRows}</tbody></table></div><p class="muted" style="font-size:12px">Consigue 3 símbolos iguales en la fila central. ¡El 7️⃣ reparte el premio mayor de ${fmtMoney(30000)}!</p></div>
                 <h3>Historial</h3><div class="log-list">${history || `<p class="muted">Aún no has jugado.</p>`}</div>`;
         }
+        // ===== TRILERO =====
+        let _trileroAnimating = false;
+        let _trileroResult = null; // { won, correctCup, playerChoice, bolita }
+
+        function renderTrileroTab(el) {
+            state.trilero = state.trilero || { spins: 0, totalBet: 0, totalWon: 0, history: [], spinTimes: [] };
+            const t = state.trilero;
+            const spinsLeft = Math.max(0, TRILERO_DAILY_LIMIT - trileroSpinsLast24h());
+            const canPlay = (state.bank?.balance || 0) >= TRILERO_COST && spinsLeft > 0 && !_trileroAnimating;
+            const net = (t.totalWon || 0) - (t.totalBet || 0);
+            const history = (t.history || []).slice(0, 8).map(h =>
+                `<div class="log-item"><strong>${h.won ? `🎉 +${fmtMoney(TRILERO_PRIZE)}` : "❌ Sin premio"} · Elegiste taza ${h.choice}, bolita en ${h.correct}</strong><p class="muted mono">${fmtDate(h.ts)}</p></div>`
+            ).join("");
+
+            let resultHtml = "";
+            if (_trileroResult) {
+                const r = _trileroResult;
+                resultHtml = r.won
+                    ? `<div class="card" style="border-color:#4caf50;background:rgba(76,175,80,.08);text-align:center"><p style="font-size:22px">🎉 ¡Has ganado!</p><p>Elegiste la taza <strong>${r.playerChoice}</strong> y la bolita estaba ahí. <strong class="ok-text">+${fmtMoney(TRILERO_PRIZE)}</strong></p></div>`
+                    : `<div class="card" style="border-color:#e53935;background:rgba(229,57,53,.06);text-align:center"><p style="font-size:22px">❌ ¡Has fallado!</p><p>Elegiste la taza <strong>${r.playerChoice}</strong> pero la bolita estaba en la <strong>${r.correctCup}</strong>.</p></div>`;
+            }
+
+            el.innerHTML = `
+                <div class="metrics">${metricHtml("Tiradas", fmtNum(t.spins || 0), "🎩")}${metricHtml("Coste por tirada", fmtMoney(TRILERO_COST), "💶")}</div>
+                <div class="card">
+                    <h3 style="margin-top:0">📊 Tus resultados</h3>
+                    <p style="margin:4px 0">Total gastado: <strong class="danger-text">${fmtMoney(t.totalBet || 0)}</strong></p>
+                    <p style="margin:4px 0">Total ganado: <strong class="ok-text">${fmtMoney(t.totalWon || 0)}</strong></p>
+                    <p style="margin:4px 0">Balance: <strong class="${net >= 0 ? "ok-text" : "danger-text"}">${net >= 0 ? "+" : ""}${fmtMoney(net)}</strong></p>
+                    <p style="margin:4px 0;font-size:12px" class="muted">Tiradas disponibles hoy: <strong>${spinsLeft} / ${TRILERO_DAILY_LIMIT}</strong></p>
+                </div>
+                ${resultHtml}
+                <div class="card" style="text-align:center">
+                    <h3 style="margin-top:0">🎩 El Trilero</h3>
+                    <p class="muted" style="font-size:13px">Elige la taza que esconde la bolita. Cada tirada cuesta ${fmtMoney(TRILERO_COST)}. Si aciertas, ganas ${fmtMoney(TRILERO_PRIZE)}.</p>
+                    <div id="trileroStage" style="font-size:52px;letter-spacing:16px;margin:16px 0;min-height:64px">🎩 🎩 🎩</div>
+                    <div id="trileroMsg" class="muted" style="font-size:13px;min-height:24px;margin-bottom:12px"></div>
+                    ${canPlay ? `
+                    <p style="font-size:13px;margin-bottom:8px">¿Debajo de cuál está la bolita?</p>
+                    <div class="row" style="justify-content:center;gap:12px">
+                        <button class="primary" data-action="trilero-pick" data-cup="1" style="font-size:20px;padding:10px 18px">🎩 1</button>
+                        <button class="primary" data-action="trilero-pick" data-cup="2" style="font-size:20px;padding:10px 18px">🎩 2</button>
+                        <button class="primary" data-action="trilero-pick" data-cup="3" style="font-size:20px;padding:10px 18px">🎩 3</button>
+                    </div>` : _trileroAnimating ? `<button class="primary" disabled>🎩 Mezclando…</button>` :
+                    spinsLeft <= 0 ? `<button class="primary" disabled>Límite diario alcanzado</button>` :
+                    `<button class="primary" disabled>Saldo insuficiente</button>`}
+                </div>
+                <h3>Historial</h3><div class="log-list">${history || `<p class="muted">Aún no has jugado.</p>`}</div>`;
+        }
+
+        async function playTrilero(cup) {
+            if (_trileroAnimating) return;
+            if ((state.level || 1) < 3) return notify("Bloqueado", "El casino se desbloquea en el nivel 3.", "warn", true);
+            if (trileroSpinsLast24h() >= TRILERO_DAILY_LIMIT) return notify("Límite diario", `Solo puedes hacer ${TRILERO_DAILY_LIMIT} tiradas cada 24 horas.`, "warn", true);
+            if ((state.bank?.balance || 0) < TRILERO_COST) return notify("Saldo insuficiente", `Cada tirada cuesta ${fmtMoney(TRILERO_COST)}.`, "warn", true);
+
+            _trileroAnimating = true;
+            _trileroResult = null;
+            state.trilero = state.trilero || { spins: 0, totalBet: 0, totalWon: 0, history: [], spinTimes: [] };
+            const t = state.trilero;
+
+            // Charge bet
+            state.bank.balance -= TRILERO_COST;
+            t.totalBet = (t.totalBet || 0) + TRILERO_COST;
+            t.spins = (t.spins || 0) + 1;
+            t.spinTimes = Array.isArray(t.spinTimes) ? t.spinTimes : [];
+            t.spinTimes.push(Date.now());
+
+            const stage = $("trileroStage");
+            const msg = $("trileroMsg");
+
+            // Phase 1: show bolita under chosen cup briefly
+            const cups = ["🎩", "🎩", "🎩"];
+            const revealCups = [...cups];
+            revealCups[cup - 1] = "⚪";
+            if (stage) stage.textContent = revealCups.join(" ");
+            if (msg) msg.textContent = "La bolita está aquí…";
+            await _sleep(800);
+
+            // Phase 2: hide bolita
+            if (stage) stage.textContent = "🎩 🎩 🎩";
+            if (msg) msg.textContent = "¡Ahora mezclamos!";
+            await _sleep(400);
+
+            // Phase 3: shuffle animation (fast swaps)
+            const positions = [1, 2, 3];
+            let bolita = cup; // start under chosen cup
+            const SHUFFLES = 14;
+            for (let i = 0; i < SHUFFLES; i++) {
+                // Pick two random cups to swap visually
+                const a = Math.floor(Math.random() * 3);
+                let b = Math.floor(Math.random() * 2);
+                if (b >= a) b++;
+                // Animate the swap
+                const s = ["🎩", "🎩", "🎩"];
+                s[a] = "🔄"; s[b] = "🔄";
+                if (stage) stage.textContent = s.join(" ");
+                await _sleep(120);
+                if (stage) stage.textContent = "🎩 🎩 🎩";
+                await _sleep(80);
+            }
+
+            // Determine outcome AFTER shuffle with house edge
+            let won = Math.random() < TRILERO_WIN_PROB;
+            let correctCup;
+            if (won) {
+                correctCup = cup; // bolita really is under player's choice
+            } else {
+                // Pick a different cup
+                const others = [1, 2, 3].filter(c => c !== cup);
+                correctCup = others[Math.floor(Math.random() * others.length)];
+            }
+
+            // Phase 4: reveal
+            const finalCups = ["🎩", "🎩", "🎩"];
+            finalCups[correctCup - 1] = "⚪";
+            if (stage) stage.textContent = finalCups.join(" ");
+            if (msg) msg.textContent = won ? `¡Estaba en la taza ${correctCup}! ¡Has acertado!` : `Estaba en la taza ${correctCup}. ¡Mala suerte!`;
+
+            // Resolve
+            if (won) {
+                state.bank.balance += TRILERO_PRIZE;
+                t.totalWon = (t.totalWon || 0) + TRILERO_PRIZE;
+            }
+            t.history = t.history || [];
+            t.history.unshift({ won, choice: cup, correct: correctCup, ts: Date.now() });
+            if (t.history.length > 80) t.history = t.history.slice(0, 80);
+
+            // Bank movement
+            const net = (won ? TRILERO_PRIZE : 0) - TRILERO_COST;
+            const nowTs = Date.now();
+            const last = state.bank.movements[0];
+            const isOpenSession = last && last._trileroSession && (nowTs - (last.ts || 0)) < 10 * 60 * 1000;
+            if (isOpenSession) {
+                last._trileroSpins = (last._trileroSpins || 1) + 1;
+                last._trileroBet = (last._trileroBet || TRILERO_COST) + TRILERO_COST;
+                last._trileroWon = (last._trileroWon || 0) + (won ? TRILERO_PRIZE : 0);
+                last.amount = (last.amount || 0) + net;
+                last.ts = nowTs;
+                last.balanceAfter = state.bank.balance;
+                last.type = last.amount >= 0 ? "income" : "expense";
+                last.label = `🎩 Trilero · ${last._trileroSpins} tiradas (apostado ${fmtMoney(last._trileroBet)}, premios ${fmtMoney(last._trileroWon)})`;
+            } else {
+                state.bank.movements.unshift({ id: uid("mov"), type: net >= 0 ? "income" : "expense", label: `🎩 Trilero · 1 tirada (apostado ${fmtMoney(TRILERO_COST)}, premios ${fmtMoney(won ? TRILERO_PRIZE : 0)})`, amount: net, ts: nowTs, balanceAfter: state.bank.balance, _trileroSession: true, _trileroSpins: 1, _trileroBet: TRILERO_COST, _trileroWon: won ? TRILERO_PRIZE : 0 });
+                state.bank.movements = state.bank.movements.slice(0, 300);
+            }
+
+            _trileroResult = { won, correctCup, playerChoice: cup };
+            _trileroAnimating = false;
+            renderCasino(); saveGame(true);
+            if (won) notify("🎉 ¡Has ganado en el Trilero!", `Elegiste la taza ${cup} y la bolita estaba ahí. +${fmtMoney(TRILERO_PRIZE)}`, "ok", true);
+        }
+
+
         const _sleep = ms => new Promise(res => setTimeout(res, ms));
         // Animate the reels visibly spinning, landing on the given final icons. Symbols change fast (every
         // 55ms) and reels stop one by one left→right so the spin is clearly visible.
@@ -7778,11 +7961,11 @@
         }
         async function spinSlots() {
             if (_slotsSpinning || _slotsAutoRunning) return;
-            if ((state.level || 1) < 3) return notify("Bloqueado", "La tragaperras se desbloquea en el nivel 3.", "warn", true);
+            if ((state.level || 1) < 3) return notify("Bloqueado", "El casino se desbloquea en el nivel 3.", "warn", true);
             state.slots = state.slots || { spins: 0, totalBet: 0, totalWon: 0, lastReels: ["🍒", "🍋", "🔔"], history: [] };
             if (slotsSpinsLast24h() >= SLOT_DAILY_LIMIT) return notify("Límite diario", `Solo puedes hacer ${SLOT_DAILY_LIMIT} tiradas cada 24 horas. Vuelve más tarde.`, "warn", true);
             if ((state.bank?.balance || 0) < SLOT_COST) return notify("Saldo insuficiente", `Cada tirada cuesta ${fmtMoney(SLOT_COST)}.`, "warn", true);
-            _slotsSpinning = true; renderSlots();
+            _slotsSpinning = true; renderCasino();
             const res = doOneSlotSpin();
             await animateReels(res.icons, 900);
             _slotsSpinning = false;
@@ -7806,18 +7989,18 @@
                 state.bank.movements.unshift({ id: uid("mov"), type: net >= 0 ? "income" : "expense", label: `🎰 Tragaperras · 1 tirada (apostado ${fmtMoney(SLOT_COST)}, premios ${fmtMoney(res.win || 0)})`, amount: net, ts: nowTs, balanceAfter: state.bank.balance, _slotSession: true, _slotSpins: 1, _slotBet: SLOT_COST, _slotWon: res.win || 0 });
                 state.bank.movements = state.bank.movements.slice(0, 300);
             }
-            renderSlots(); saveGame(true);
+            renderCasino(); saveGame(true);
             if (res.win > 0) notify(res.jackpot ? "🎉 ¡JACKPOT 7️⃣7️⃣7️⃣!" : "🎉 ¡Premio!", `${res.icons.join(" ")} · Has ganado ${fmtMoney(res.win)}.`, "ok", true);
         }
         async function spinSlots50() {
             if (_slotsSpinning || _slotsAutoRunning) return;
-            if ((state.level || 1) < 3) return notify("Bloqueado", "La tragaperras se desbloquea en el nivel 3.", "warn", true);
+            if ((state.level || 1) < 3) return notify("Bloqueado", "El casino se desbloquea en el nivel 3.", "warn", true);
             state.slots = state.slots || { spins: 0, totalBet: 0, totalWon: 0, lastReels: ["🍒", "🍋", "🔔"], history: [] };
             const remaining = SLOT_DAILY_LIMIT - slotsSpinsLast24h();
             if (remaining <= 0) return notify("Límite diario", `Solo puedes hacer ${SLOT_DAILY_LIMIT} tiradas cada 24 horas. Vuelve más tarde.`, "warn", true);
             if ((state.bank?.balance || 0) < SLOT_COST) return notify("Saldo insuficiente", `Cada tirada cuesta ${fmtMoney(SLOT_COST)}.`, "warn", true);
             const maxRuns = Math.min(50, remaining);
-            _slotsAutoRunning = true; _slotsStopRequested = false; renderSlots();
+            _slotsAutoRunning = true; _slotsStopRequested = false; renderCasino();
             let spent = 0, won = 0, wins = 0, jackpot = false, done = 0;
             for (let i = 0; i < maxRuns; i++) {
                 if (_slotsStopRequested) break;
@@ -7840,7 +8023,7 @@
                 state.bank.movements.unshift({ id: uid("mov"), type: net >= 0 ? "income" : "expense", label: `🎰 Tragaperras · tanda de ${done} tiradas (apostado ${fmtMoney(spent)}, premios ${fmtMoney(won)})`, amount: net, ts: Date.now(), balanceAfter: state.bank.balance });
                 state.bank.movements = state.bank.movements.slice(0, 300);
             }
-            renderSlots(); saveGame(true);
+            renderCasino(); saveGame(true);
             const net = won - spent;
             notify(jackpot ? "🎉 ¡JACKPOT 7️⃣7️⃣7️⃣!" : "Tanda completada 🎰", `Tiradas: ${done}\nApostado: ${fmtMoney(spent)}\nPremios: ${wins} (${fmtMoney(won)})\nBalance: ${net >= 0 ? "+" : ""}${fmtMoney(net)}`, won >= spent ? "ok" : "info", true);
         }
@@ -9897,7 +10080,7 @@
             document.documentElement.lang = state.settings.language;
             const navLabels = state.settings.language === "en"
                 ? { dashboard: "Dashboard", orders: "Orders", fleet: "Fleet", staff: "Staff", warehouse: "Warehouse", finance: "Finances", clients: "Clients", shop: "Shop", wheel: "Wheel", alliance: "Alliance", email: "Corporate email", tutorial: "Tutorial", settings: "Settings", legal: "Legal notice", account: "Account" }
-                : { dashboard: "Dashboard", orders: "Pedidos", fleet: "Flota", staff: "Personal", warehouse: "Nave industrial", finance: "Finanzas", clients: "Clientes", shop: "Tienda", wheel: "Ruleta", alliance: "Alianza", email: "Email corporativo", tutorial: "Tutorial", settings: "Ajustes", legal: "Aviso legal", account: "Cuenta" };
+                : { dashboard: "Dashboard", orders: "Pedidos", fleet: "Flota", staff: "Personal", warehouse: "Nave industrial", finance: "Finanzas", clients: "Clientes", shop: "Tienda", wheel: "Ruleta", casino: "Casino", alliance: "Alianza", email: "Email corporativo", tutorial: "Tutorial", settings: "Ajustes", legal: "Aviso legal", account: "Cuenta" };
             Object.entries(navLabels).forEach(([section, label]) => { const el = document.querySelector(`.nav-btn[data-section="${section}"] .nav-text`); if (el) el.textContent = label; });
             if (notifyUser) notify(state.settings.language === "en" ? "Language saved" : "Idioma guardado", state.settings.language === "en" ? "The main interface language has been updated." : "El idioma principal de la interfaz se ha actualizado.", "ok");
             renderAll(); saveGame(true);
@@ -12050,6 +12233,8 @@
             if (action === "spin-slots") spinSlots();
             if (action === "spin-slots-50") spinSlots50();
             if (action === "slots-stop") stopSlotsAuto();
+            if (action === "casino-tab") { _casinoTab = el.dataset.tab; renderCasino(); return; }
+            if (action === "trilero-pick") { playTrilero(parseInt(el.dataset.cup)); return; }
             if (action === "change-tires") showTireChangeOptions(id);
             if (action === "tire-change-confirm") changeTires(btn.dataset.vehicle, btn.dataset.mode);
             if (action === "pass-itv") passItv(id, btn.dataset.kind);
@@ -12391,8 +12576,8 @@
               text: "Cada cliente permanente tiene fidelidad (0-100%). Entregar a tiempo sube +1%; cada día (renovación de las 20:00) con un pedido suyo sin completar baja -1%. Al 100% te ofrecen contrato fijo con +1€/km extra. Recibes un email con cada cambio." },
             { section: "wheel", target: null, title: "10. Ruleta diaria 🎡",
               text: "Cada día puedes girar la ruleta gratis y ganar premios: descuentos de gasoil, pedidos especiales, días sin multas, etc. ¡No olvides girarla cada día!" },
-            { section: "slots", target: null, title: "10b. Tragaperras 🎰",
-              text: "Una máquina de azar de 3 rodillos que se desbloquea en el nivel 3. Cada tirada cuesta 100 € y ganas si salen 3 símbolos iguales en la fila central. Hay premios desde 500 € hasta un jackpot de 30.000 €. Máximo 50 tiradas cada 24 horas." },
+            { section: "casino", target: null, title: "10b. Casino 🎰",
+              text: "El casino se desbloquea en el nivel 3 e incluye dos juegos de azar: la Tragaperras (100€/tirada, 3 rodillos, premios hasta 30.000€) y el Trilero (10€/tirada, adivina dónde está la bolita, ganas 50€ si aciertas)." },
             { section: "alliance", target: null, title: "11. Alianzas ⚔️",
               text: "Únete o crea una alianza para cooperar con otros jugadores: acumular un fondo común, construir gasolineras juntos y competir en el ranking de alianzas." },
             { section: "fleet", target: null, title: "11b. Remolque Jet A-1 y carné ✈️",
