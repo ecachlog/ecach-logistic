@@ -600,7 +600,7 @@
 
             <section id="orders" class="view"><div class="panel"><div class="panel-title"><div><h2>📦 Pedidos</h2><p>Gestiona tus pedidos por estado.</p></div></div><div class="row" style="gap:8px;margin-bottom:12px;flex-wrap:wrap"><button id="tab-orders-available" class="primary small" data-action="orders-tab" data-tab="available">📨 Por aceptar</button><button id="tab-orders-accepted" class="ghost small" data-action="orders-tab" data-tab="accepted">✅ Aceptados</button><button id="tab-orders-active" class="ghost small" data-action="orders-tab" data-tab="active">🚛 En uso</button><button id="tab-orders-history" class="ghost small" data-action="orders-tab" data-tab="history">📋 Historial</button></div><div id="ordersContent" class="stack"></div></div></section>
             <section id="fleet" class="view"><div class="panel"><div class="panel-title"><div><h2>🚛 Flota ADR</h2><p>Cabezas tractoras, cisternas, desgaste, ITV y tacógrafo.</p></div></div><div id="fleetContent" class="stack"></div></div></section>
-            <section id="staff" class="view"><div class="panel"><div class="panel-title"><div><h2>👷 Personal</h2><p>Contratación, salarios, vacaciones, bajas y cobertura.</p></div></div><div class="row" style="gap:8px;margin-bottom:12px"><button id="tab-staff-cvs" class="primary small" data-action="staff-tab" data-tab="cvs">📄 Currículums</button><button id="tab-staff-active" class="ghost small" data-action="staff-tab" data-tab="active">✅ Activos</button><button id="tab-staff-leave" class="ghost small" data-action="staff-tab" data-tab="leave">🤒 Bajas</button><button id="tab-staff-vacation" class="ghost small" data-action="staff-tab" data-tab="vacation">🌴 Vacaciones</button><button id="tab-staff-retire" class="ghost small" data-action="staff-tab" data-tab="retire">👴 Jubilaciones</button><button id="tab-staff-ett" class="ghost small" data-action="staff-tab" data-tab="ett">🚚 Autónomos ETT</button><button id="tab-staff-raises" class="ghost small" data-action="staff-tab" data-tab="raises">📧 Ofertas pendientes</button></div><div id="staffContent" class="stack"></div></div></section>
+            <section id="staff" class="view"><div class="panel"><div class="panel-title"><div><h2>👷 Personal</h2><p>Contratación, salarios, vacaciones, bajas y cobertura.</p></div></div><div class="row" style="gap:8px;margin-bottom:12px"><button id="tab-staff-cvs" class="primary small" data-action="staff-tab" data-tab="cvs">📄 Currículums</button><button id="tab-staff-active" class="ghost small" data-action="staff-tab" data-tab="active">✅ Activos</button><button id="tab-staff-leave" class="ghost small" data-action="staff-tab" data-tab="leave">🤒 Bajas</button><button id="tab-staff-vacation" class="ghost small" data-action="staff-tab" data-tab="vacation">🌴 Vacaciones</button><button id="tab-staff-retire" class="ghost small" data-action="staff-tab" data-tab="retire">👴 Jubilaciones</button><button id="tab-staff-raises" class="ghost small" data-action="staff-tab" data-tab="raises">📧 Ofertas pendientes</button></div><div id="staffContent" class="stack"></div></div></section>
             <section id="warehouse" class="view"><div class="panel"><div class="panel-title"><div><h2>🏭 Nave industrial y depósito propio</h2><p>Plazas, combustible, repostaje automático y proveedores.</p></div></div><div id="warehouseContent" class="stack"></div></div></section>
             <section id="finance" class="view"><div class="panel"><div class="panel-title"><div><h2>💶 Finanzas</h2><p>Cuenta, facturas, gastos fijos y calendario financiero.</p></div></div><div class="row" style="gap:8px;margin-bottom:12px"><button id="tab-finance-overview" class="primary small" data-action="finance-tab" data-tab="overview">📊 Resumen</button><button id="tab-finance-calendar" class="ghost small" data-action="finance-tab" data-tab="calendar">📅 Calendario financiero</button><button id="tab-finance-invoices" class="ghost small" data-action="finance-tab" data-tab="invoices">🧾 Facturas</button></div><div id="financeContent" class="stack"></div></div></section>
             <section id="clients" class="view"><div class="panel"><div class="panel-title"><div><h2>🤝 Clientes diarios</h2><p>Clientes con pedidos abiertos y condiciones por km.</p></div></div><div id="clientsContent" class="stack"></div></div></section>
@@ -7026,7 +7026,7 @@
             activeWorkers.forEach(w => { if (activeCounts[w.role] !== undefined) activeCounts[w.role]++; });
             const needs = minimumStaffNeeds();
 
-            ["cvs","active","leave","vacation","retire","ett","raises"].forEach(t => {
+            ["cvs","active","leave","vacation","retire","raises"].forEach(t => {
                 const btn = document.getElementById("tab-staff-" + t);
                 if (btn) btn.className = t === _staffTab ? "primary small" : "ghost small";
             });
@@ -7078,22 +7078,6 @@
                         <p class="muted" style="font-size:11px">⚠️ Este importe se cobrará de golpe el día de la jubilación y puede dejarte en negativo. Ve preparando el dinero y un relevo.</p></article>`;
                     }).join("");
                     content += `<p class="muted" style="font-size:13px;margin-bottom:10px">Trabajadores con jubilación anunciada. Aquí ves su último día de trabajo y el importe exacto que pagarás el día de su jubilación.</p><div class="cards">${cards}</div>`;
-                }
-            } else if (_staffTab === "ett") {
-                const ettTrips = (state.activeTrips || []).filter(t => t.external);
-                if (ettTrips.length === 0) {
-                    content += `<p class="muted">No tienes ningún autónomo ETT trabajando ahora mismo. Los autónomos son conductores subcontratados por viaje (desde Pedidos → Subcontratar autónomo). Aparecen aquí mientras están en ruta y desaparecen al completar su viaje.</p>`;
-                } else {
-                    const cards = ettTrips.map(t => {
-                        const info = routeProgressInfo(t);
-                        const pct = Math.round((info.fraction || 0) * 100);
-                        return `<article class="card" style="border-color:#9c27b0;background:rgba(156,39,176,.06)"><div class="row" style="justify-content:space-between"><h3>🚚 ${t.driverNames?.[0] || "Autónomo ETT"}</h3><span class="badge" style="background:#9c27b0;color:#fff">Temporal</span></div>
-                        <p>Pedido: <strong>${t.clientName || "—"}</strong></p>
-                        <p>Matrícula: <span class="mono">${t.truckPlate || "—"}</span></p>
-                        <p>Progreso del viaje: <strong>${pct}%</strong> · ${Math.round(info.remainingKm || 0)} km restantes</p>
-                        <p class="muted" style="font-size:12px">Coste: ${AUTONOMO_KM_COST.toFixed(2)} €/km + 100€ carga/descarga. Se paga al completar el viaje.</p></article>`;
-                    }).join("");
-                    content += `<p class="muted" style="font-size:13px;margin-bottom:10px">Autónomos ETT trabajando ahora mismo (conductores subcontratados por viaje, no forman parte de tu plantilla fija).</p><div class="cards">${cards}</div>`;
                 }
             } else if (_staffTab === "raises") {
                 if (pendingRaises.length === 0) {
