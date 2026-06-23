@@ -493,7 +493,7 @@
                     <div class="mhud" id="mobileAdrHud">ADR OK</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v2.3</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v2.4</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -521,7 +521,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v2.3</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v2.4</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -600,7 +600,7 @@
 
             <section id="orders" class="view"><div class="panel"><div class="panel-title"><div><h2>📦 Pedidos</h2><p>Gestiona tus pedidos por estado.</p></div></div><div class="row" style="gap:8px;margin-bottom:12px;flex-wrap:wrap"><button id="tab-orders-available" class="primary small" data-action="orders-tab" data-tab="available">📨 Por aceptar</button><button id="tab-orders-accepted" class="ghost small" data-action="orders-tab" data-tab="accepted">✅ Aceptados</button><button id="tab-orders-active" class="ghost small" data-action="orders-tab" data-tab="active">🚛 En uso</button><button id="tab-orders-history" class="ghost small" data-action="orders-tab" data-tab="history">📋 Historial</button></div><div id="ordersContent" class="stack"></div></div></section>
             <section id="fleet" class="view"><div class="panel"><div class="panel-title"><div><h2>🚛 Flota ADR</h2><p>Cabezas tractoras, cisternas, desgaste, ITV y tacógrafo.</p></div></div><div id="fleetContent" class="stack"></div></div></section>
-            <section id="staff" class="view"><div class="panel"><div class="panel-title"><div><h2>👷 Personal</h2><p>Contratación, salarios, vacaciones, bajas y cobertura.</p></div></div><div class="row" style="gap:8px;margin-bottom:12px"><button id="tab-staff-cvs" class="primary small" data-action="staff-tab" data-tab="cvs">📄 Currículums</button><button id="tab-staff-active" class="ghost small" data-action="staff-tab" data-tab="active">✅ Activos</button><button id="tab-staff-leave" class="ghost small" data-action="staff-tab" data-tab="leave">🤒 Bajas</button><button id="tab-staff-vacation" class="ghost small" data-action="staff-tab" data-tab="vacation">🌴 Vacaciones</button><button id="tab-staff-retire" class="ghost small" data-action="staff-tab" data-tab="retire">👴 Jubilaciones</button><button id="tab-staff-raises" class="ghost small" data-action="staff-tab" data-tab="raises">📧 Ofertas pendientes</button></div><div id="staffContent" class="stack"></div></div></section>
+            <section id="staff" class="view"><div class="panel"><div class="panel-title"><div><h2>👷 Personal</h2><p>Contratación, salarios, vacaciones, bajas y cobertura.</p></div></div><div class="row" style="gap:8px;margin-bottom:12px"><button id="tab-staff-cvs" class="primary small" data-action="staff-tab" data-tab="cvs">📄 Currículums</button><button id="tab-staff-active" class="ghost small" data-action="staff-tab" data-tab="active">✅ Activos</button><button id="tab-staff-leave" class="ghost small" data-action="staff-tab" data-tab="leave">🤒 Bajas</button><button id="tab-staff-vacation" class="ghost small" data-action="staff-tab" data-tab="vacation">🌴 Vacaciones</button><button id="tab-staff-retire" class="ghost small" data-action="staff-tab" data-tab="retire">👴 Jubilaciones</button><button id="tab-staff-ett" class="ghost small" data-action="staff-tab" data-tab="ett">🚚 Autónomos ETT</button><button id="tab-staff-raises" class="ghost small" data-action="staff-tab" data-tab="raises">📧 Ofertas pendientes</button></div><div id="staffContent" class="stack"></div></div></section>
             <section id="warehouse" class="view"><div class="panel"><div class="panel-title"><div><h2>🏭 Nave industrial y depósito propio</h2><p>Plazas, combustible, repostaje automático y proveedores.</p></div></div><div id="warehouseContent" class="stack"></div></div></section>
             <section id="finance" class="view"><div class="panel"><div class="panel-title"><div><h2>💶 Finanzas</h2><p>Cuenta, facturas, gastos fijos y calendario financiero.</p></div></div><div class="row" style="gap:8px;margin-bottom:12px"><button id="tab-finance-overview" class="primary small" data-action="finance-tab" data-tab="overview">📊 Resumen</button><button id="tab-finance-calendar" class="ghost small" data-action="finance-tab" data-tab="calendar">📅 Calendario financiero</button><button id="tab-finance-invoices" class="ghost small" data-action="finance-tab" data-tab="invoices">🧾 Facturas</button></div><div id="financeContent" class="stack"></div></div></section>
             <section id="clients" class="view"><div class="panel"><div class="panel-title"><div><h2>🤝 Clientes diarios</h2><p>Clientes con pedidos abiertos y condiciones por km.</p></div></div><div id="clientsContent" class="stack"></div></div></section>
@@ -4527,45 +4527,19 @@
                     const lastUpdateOffset = (lastUpdate - tripStart) / MS_HOUR; // hours into trip at last update
                     const nowOffset = (now - tripStart) / MS_HOUR; // hours into trip now
                     
-                    let cumHours = 0;
-                    const driverDrove = {}; // driverIdx -> hours driven during this window
-                    let longRestHappened = false;
-                    
-                    for (const leg of trip.schedule) {
-                        const legDurHrs = (leg.durationMs || 0) / MS_HOUR;
-                        const legStart = cumHours;
-                        const legEnd = cumHours + legDurHrs;
-                        
-                        // Overlap of this leg with [lastUpdateOffset, nowOffset]
-                        const overlapStart = Math.max(legStart, lastUpdateOffset);
-                        const overlapEnd = Math.min(legEnd, nowOffset);
-                        const overlapHrs = Math.max(0, overlapEnd - overlapStart);
-                        
-                        if (overlapHrs > 0) {
-                            if (leg.type === "drive") {
-                                const idx = typeof leg.driverIdx === "number" ? leg.driverIdx : 0;
-                                driverDrove[idx] = (driverDrove[idx] || 0) + overlapHrs;
-                            } else if (leg.type === "rest" && legDurHrs >= TACHO_DAILY_REST_HOURS * 0.8) {
-                                // Long 11h rest happened - flag it
-                                longRestHappened = true;
-                            }
-                        }
-                        cumHours = legEnd;
-                    }
-                    
-                    // Apply hours to each driver (with daily cap)
-                    trip.driverIds.forEach((id, idx) => {
+                    // Process legs IN ORDER. When a long rest is crossed, reset accumulated hours
+                    // at that point so hours driven AFTER the rest are not lost to the daily cap.
+                    // This fixes the bug where on long trips (e.g. 1800km) both drivers showed 9h
+                    // red bars and kept driving without the mandatory 11h rest being applied.
+                    const applyDriveHours = (idx, hrs) => {
+                        const id = trip.driverIds[idx];
+                        if (!id) return;
                         const driver = state.workers.find(w => w.id === id);
                         if (!driver) return;
-                        const hoursForThisDriver = driverDrove[idx] || 0;
-                        if (hoursForThisDriver > 0) {
-                            driver.drivingToday = Math.min((driver.drivingToday || 0) + hoursForThisDriver, TACHO_DAILY_DRIVE_HOURS);
-                            driver.drivingWeek = Math.min((driver.drivingWeek || 0) + hoursForThisDriver, TACHO_WEEKLY_DRIVE_HOURS);
-                        }
-                    });
-                    
-                    // If a long rest happened during this window, reset drivingToday for all drivers
-                    if (longRestHappened) {
+                        driver.drivingToday = Math.min((driver.drivingToday || 0) + hrs, TACHO_DAILY_DRIVE_HOURS);
+                        driver.drivingWeek = Math.min((driver.drivingWeek || 0) + hrs, TACHO_WEEKLY_DRIVE_HOURS);
+                    };
+                    const resetAllDrivers = () => {
                         trip.driverIds.forEach(id => {
                             const driver = state.workers.find(w => w.id === id);
                             if (driver) {
@@ -4574,6 +4548,27 @@
                                 driver.lastRestEndTs = now;
                             }
                         });
+                    };
+
+                    let cumHours = 0;
+                    for (const leg of trip.schedule) {
+                        const legDurHrs = (leg.durationMs || 0) / MS_HOUR;
+                        const legStart = cumHours;
+                        const legEnd = cumHours + legDurHrs;
+                        const overlapStart = Math.max(legStart, lastUpdateOffset);
+                        const overlapEnd = Math.min(legEnd, nowOffset);
+                        const overlapHrs = Math.max(0, overlapEnd - overlapStart);
+
+                        if (overlapHrs > 0) {
+                            if (leg.type === "drive") {
+                                const idx = typeof leg.driverIdx === "number" ? leg.driverIdx : 0;
+                                applyDriveHours(idx, overlapHrs);
+                            } else if (leg.type === "rest" && legDurHrs >= TACHO_DAILY_REST_HOURS * 0.8) {
+                                // A long 11h rest is being crossed — reset hours so post-rest driving counts fresh
+                                resetAllDrivers();
+                            }
+                        }
+                        cumHours = legEnd;
                     }
                 }
             }
@@ -4651,12 +4646,15 @@
                     const frac = trip.kmRound ? doneKm / trip.kmRound : 0;
                     if ((outbound > 0 && doneKm >= outbound - 2) || frac >= 0.55) {
                         trip.airportDelivered = true;
+                        trip.airportDoneConfirmed = false; // will be set true once server confirms
                         const ac = trip.airportContract;
-                        apiCall("POST", `/api/airport-contracts/${ac.contractId}/trip`, { tripN: ac.tripN, state: "done", company: state.companyName || state.warehouse?.companyName || "" })
+                        const sendDone = () => apiCall("POST", `/api/airport-contracts/${ac.contractId}/trip`, { tripN: ac.tripN, state: "done", company: state.companyName || state.warehouse?.companyName || "" })
                             .then(res => {
+                                trip.airportDoneConfirmed = true;
                                 if (res && res.contractCompleted) notify("¡Contrato completado!", "Has entregado todos los viajes del contrato. La alianza recibe su recompensa.", "ok", true);
                                 if (typeof loadAirportContracts === "function") loadAirportContracts();
-                            }).catch(() => {});
+                            }).catch(() => { /* will retry from the safety net below */ });
+                        sendDone();
                         notify("Viaje entregado", `Viaje ${ac.tripN} descargado en ${trip.destination ? "el aeropuerto" : "destino"}. El cobro llegará cuando el camión vuelva a base.`, "ok", true);
                     }
                 }
@@ -7028,7 +7026,7 @@
             activeWorkers.forEach(w => { if (activeCounts[w.role] !== undefined) activeCounts[w.role]++; });
             const needs = minimumStaffNeeds();
 
-            ["cvs","active","leave","vacation","raises"].forEach(t => {
+            ["cvs","active","leave","vacation","retire","ett","raises"].forEach(t => {
                 const btn = document.getElementById("tab-staff-" + t);
                 if (btn) btn.className = t === _staffTab ? "primary small" : "ghost small";
             });
@@ -7080,6 +7078,22 @@
                         <p class="muted" style="font-size:11px">⚠️ Este importe se cobrará de golpe el día de la jubilación y puede dejarte en negativo. Ve preparando el dinero y un relevo.</p></article>`;
                     }).join("");
                     content += `<p class="muted" style="font-size:13px;margin-bottom:10px">Trabajadores con jubilación anunciada. Aquí ves su último día de trabajo y el importe exacto que pagarás el día de su jubilación.</p><div class="cards">${cards}</div>`;
+                }
+            } else if (_staffTab === "ett") {
+                const ettTrips = (state.activeTrips || []).filter(t => t.external);
+                if (ettTrips.length === 0) {
+                    content += `<p class="muted">No tienes ningún autónomo ETT trabajando ahora mismo. Los autónomos son conductores subcontratados por viaje (desde Pedidos → Subcontratar autónomo). Aparecen aquí mientras están en ruta y desaparecen al completar su viaje.</p>`;
+                } else {
+                    const cards = ettTrips.map(t => {
+                        const info = routeProgressInfo(t);
+                        const pct = Math.round((info.fraction || 0) * 100);
+                        return `<article class="card" style="border-color:#9c27b0;background:rgba(156,39,176,.06)"><div class="row" style="justify-content:space-between"><h3>🚚 ${t.driverNames?.[0] || "Autónomo ETT"}</h3><span class="badge" style="background:#9c27b0;color:#fff">Temporal</span></div>
+                        <p>Pedido: <strong>${t.clientName || "—"}</strong></p>
+                        <p>Matrícula: <span class="mono">${t.truckPlate || "—"}</span></p>
+                        <p>Progreso del viaje: <strong>${pct}%</strong> · ${Math.round(info.remainingKm || 0)} km restantes</p>
+                        <p class="muted" style="font-size:12px">Coste: ${AUTONOMO_KM_COST.toFixed(2)} €/km + 100€ carga/descarga. Se paga al completar el viaje.</p></article>`;
+                    }).join("");
+                    content += `<p class="muted" style="font-size:13px;margin-bottom:10px">Autónomos ETT trabajando ahora mismo (conductores subcontratados por viaje, no forman parte de tu plantilla fija).</p><div class="cards">${cards}</div>`;
                 }
             } else if (_staffTab === "raises") {
                 if (pendingRaises.length === 0) {
@@ -12558,6 +12572,19 @@
         }
         setTimeout(_refreshAlliancePrize, 2000); // load 2s after game starts — before any trips tick
         setTimeout(showNewsPopupIfNeeded, 2500); // show news popup once per player
+
+        // Safety net: re-send "done" for airport trips that were delivered but never confirmed by the server
+        // (e.g. the API call failed because the server was restarting). Runs every 30s.
+        setInterval(() => {
+            (state.activeTrips || []).forEach(trip => {
+                if (trip.airportContract && trip.airportDelivered && trip.airportDoneConfirmed === false) {
+                    const ac = trip.airportContract;
+                    apiCall("POST", `/api/airport-contracts/${ac.contractId}/trip`, { tripN: ac.tripN, state: "done", company: state.companyName || state.warehouse?.companyName || "" })
+                        .then(() => { trip.airportDoneConfirmed = true; if (typeof loadAirportContracts === "function") loadAirportContracts(); })
+                        .catch(() => {});
+                }
+            });
+        }, 30000);
         setInterval(_refreshAlliancePrize, 5 * 60 * 1000); // refresh every 5 min
 
 
