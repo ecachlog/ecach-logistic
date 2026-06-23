@@ -493,7 +493,7 @@
                     <div class="mhud" id="mobileAdrHud">ADR OK</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v2.4</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v2.5</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -521,7 +521,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v2.4</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v2.5</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -1421,6 +1421,7 @@
             ["2. Comprar o alquilar flota", "Empiezas con un Rebnault T480 y un remolque Feldbindber en renting. Desde la Tienda puedes ampliar flota. Cada tractora ocupa 1 plaza. El Duo Trailer (nivel 10) ocupa 1 plaza tractora y 2 de cisterna. Las revisiones tienen coste fijo de 500 € e incluyen aceite, filtros y revisión general."],
             ["3. Contratar trabajadores — Mecánicos y Administrativos", "Necesitas conductores ADR para salir a ruta. Además:\n\n🔧 Mecánicos: necesitas 1 mecánico por cada 10 camiones en posesión (renting o compra). Sin el mecánico mínimo no podrás enviar nuevos pedidos ni continuar rutas. Cada mecánico solo puede revisar un vehículo a la vez.\n\n📋 Administrativos: necesitas 1 administrativo por cada 10 camiones en posesión. Sin el administrativo mínimo tampoco podrás operar con normalidad.\n\n🚛 Conductores: no hay un mínimo obligatorio para que las rutas continúen, pero necesitas al menos 1 conductor disponible para despachar un nuevo viaje.\n\n💰 IMPORTANTE — Coste real mensual por trabajador:\nCuando contratas a alguien, cada mes pagas su nómina total, que incluye:\n· Salario base acordado con el trabajador\n· +400 € de Seguridad Social\n· +200 € de Gestoría\n\nEs decir, un trabajador que pide 2.000 €/mes te cuesta en realidad 2.600 €/mes. Todo aparece junto en el informe financiero como concepto 'Nómina'.\n\nPuedes negociar el sueldo hasta 2 veces con un margen máximo de 500 €. Si superas ese margen el sistema te avisa y puedes volver a intentarlo. Si el candidato rechaza tu oferta te dice: 'No estoy de acuerdo con tu oferta. ¡Adiós!'"],
             ["3b. 👴 Jubilación de trabajadores", "Todos los trabajadores (conductores, mecánicos y administrativos) se jubilan al cumplir los 65 años.\n\n⏳ EDAD EN TIEMPO REAL:\nLos trabajadores envejecen en tiempo real, igual que todo en el juego. Si contratas a alguien con 60 años, un año real después tendrá 61, y así hasta que cumpla 65 y se jubile. Verás su edad actualizada en la ficha de cada trabajador (sección Personal).\n\n📅 AVISO PREVIO (10 días antes):\nRecibirás un email 10 días antes de la jubilación con:\n· El nombre del trabajador y su rol\n· La fecha exacta en que se jubilará\n· El coste total de la jubilación, desglosado\n\n💰 COSTE DE LA JUBILACIÓN:\nCuando un trabajador se jubila, debes pagarle:\n· Indemnización: 1€ por cada día trabajado en tu empresa (se cuentan los días reales desde que lo contrataste)\n· + el sueldo entero de su último mes\n· = ese es el coste total\n\nEjemplo: un trabajador que lleva 200 días contigo y cobra 2.000€/mes te costará 200€ (indemnización) + 2.000€ (sueldo) = 2.200€.\n\n📅 CALENDARIO FINANCIERO:\nEn cuanto llega el email de aviso, la jubilación aparece automáticamente en Finanzas → Calendario financiero, con la fecha exacta y el importe, para que sepas en todo momento cuándo y cuánto vas a pagar y puedas ir ahorrando.\n\n💸 EL DÍA DE LA JUBILACIÓN:\n· Se cobra el coste total de golpe de tu cuenta bancaria\n· ⚠️ Este cobro PUEDE dejarte en saldo negativo, así que prepara el dinero con tiempo\n· El trabajador se despide con un email y desaparece de tu plantilla\n\n🚛 SI ESTÁ EN RUTA el día de la jubilación:\nSi un conductor está en ruta justo el día que le toca jubilarse, NO se jubila a mitad de viaje. Espera a que el camión llegue a la base y entonces se jubila (para no romper el viaje).\n\n💡 CONSEJO: cuando recibas el email de aviso, revisa el calendario financiero y asegúrate de tener saldo suficiente para el día de la jubilación. Ve preparando un relevo contratando a alguien nuevo."],
+            ["3c. 📈 Experiencia de conductores", "Cada conductor tiene un porcentaje de experiencia (0% a 100%) que refleja su nivel de habilidad al volante.\n\n📊 CÓMO SUBE LA EXPERIENCIA:\n· +1% por cada 10.000 km conducidos en ruta (sube solo, sin hacer nada)\n· +10% con el Curso de perfeccionamiento profesional (500€, solo se puede hacer UNA vez por conductor)\n· Al llegar al 100% recibirás un email notificándotelo\n\n⚠️ EFECTO REAL EN RUTA — La experiencia influye directamente en lo que pasa durante los viajes:\n\n🔴 0–20% (Novato): DOBLE riesgo de averías, accidentes y pinchazos. Estos conductores también pueden hacer paradas no planificadas en ruta por inexperiencia.\n🟡 21–50% (En formación): Riesgo un 50% más alto que la media. Siguen siendo propensos a paradas inesperadas.\n🟢 51–80% (Experimentado): Riesgo normal, sin penalizaciones ni bonificaciones.\n🏆 81–100% (Veterano): Riesgo reducido un 40%. Menos averías, menos accidentes, menos pinchazos.\n\n💡 CONSEJOS:\n· Los conductores nuevos empiezan con experiencia baja — úsalos en rutas cortas mientras aprenden\n· El curso de perfeccionamiento es la forma más rápida de subir la experiencia de golpe\n· Los conductores veteranos (>80%) son ideales para rutas largas, aeroportuarias o con mal tiempo\n· Si tienes varios conductores, asigna los más experimentados a los viajes más importantes\n\n📍 Puedes ver la experiencia de cada conductor en Personal → ficha del conductor."],
             ["4. Cómo aceptar y despachar un pedido — paso a paso", "1️⃣ Ve a la pestaña PEDIDOS → 'Por aceptar'. Verás los pedidos disponibles del día con precio, km, carga y descarga.\n\n2️⃣ Pulsa 'Aceptar' en el pedido que te interese. El pedido pasa a la pestaña 'Aceptados'.\n\n3️⃣ En la pestaña 'Aceptados', elige tractora, cisterna y conductor/es y pulsa 'Despachar flota propia'. O bien subcontrata un autónomo (máx. 300 km, tarifa 3,50 €/km + 100€ de carga y descarga).\n\n4️⃣ El camión aparece en el mapa y puedes seguir la ruta en tiempo real. Cada pedido incluye 100 € fijos de carga y descarga además del precio por km.\n\n5️⃣ Al completar el viaje se emite la factura automáticamente. El historial queda en la pestaña 'Historial'.\n\n🕖 RENOVACIÓN DE PEDIDOS DIARIOS Y DE OFICINAS:\nLos pedidos diarios y los de oficinas se renuevan TODOS LOS DÍAS A LAS 20:00. A esa hora:\n· Los pedidos diarios y de oficinas no aceptados desaparecen\n· Entra una tanda nueva de pedidos diarios y de oficinas\n· No tienes ningún plazo ni sanción por NO aceptarlos, simplemente desaparecen y entran otros\n\n📅 PLAZOS DE ENTREGA tras aceptar:\n· Pedidos diarios normales y de fidelidad: 5 días\n· Pedidos de ruleta (1 o 2 viajes): 5 días\n· Pedidos de oficina comercial: 10 días\n\n📍 IMPORTANTE: el pedido cuenta como entregado cuando el camión VUELVE A BASE, no cuando descarga al cliente. Calcula los tiempos incluyendo el viaje de vuelta.\n\n⚠️ SANCIÓN por incumplir plazo: 1.500€ siempre\n\nHay dos casos según en qué momento se incumple:\n\n· Pedido aceptado SIN despachar al vencer plazo:\n   - El pedido se cancela y desaparece (no cobras)\n   - Pagas sanción de 1.500€\n   - Si el cliente es permanente: -1% de fidelidad\n\n· Pedido EN RUTA al vencer plazo:\n   - El pedido NO desaparece. El viaje continúa normal hasta que el camión vuelve a base.\n   - Cuando el camión llega a base, cobras el importe completo del pedido + pagas la sanción de 1.500€\n   - Si el cliente es permanente: -1% de fidelidad\n\n· Contratos ruleta de 2 viajes vencidos: se eliminan sin coste ni sanción\n\n🚚 SUBCONTRATAR UN AUTÓNOMO — cuándo conviene:\nEl autónomo te cobra 3,50 €/km MÁS 100€ de carga y descarga (50€ + 50€), igual que harías tú con tu propia flota. Por eso en viajes CORTOS el margen es mínimo o incluso negativo: no es una forma de ganar dinero fácil.\n\n¿Para qué sirve entonces? Para NO PERDER LA FIDELIDAD del cliente cuando no puedes hacer el pedido con tus propios camiones (todos ocupados, en descanso, etc.). Es una herramienta de apoyo para cumplir con el cliente, no para sacar beneficio. En viajes largos sí puede dejarte un pequeño margen, pero su uso principal es cubrir pedidos que si no, perderías.\n\n💡 CONSEJO: revisa siempre el ETA antes de despachar. Si está cerca del plazo, mejor no aceptes."],
             ["5. Tacógrafo", "El juego simula la conducción y los descansos obligatorios:\n\n🚛 CONDUCTOR INDIVIDUAL:\n· Máximo 9h de conducción diaria.\n· Al agotar las 9h: descanso obligatorio de 11h — el camión para donde esté y reanuda solo al terminar.\n· La barra de las 9h no se resetea a 0 hasta haber completado las 11h reales de descanso.\n· Al llegar a base: si no ha agotado las 9h queda Disponible pero el reloj de descanso empieza. Al cumplir 11h el tacógrafo se pone a 0.\n· Si el chofer aún tiene horas disponibles cuando llega a base, sigue disponible para conducir el resto de horas hasta las 9h.\n· Descanso fuera de base: 50€ automáticos por cada descanso de 11h hecho en ruta.\n\n👥 CONDUCCIÓN EN EQUIPO (2 conductores en un mismo camión):\n· Cada conductor tiene sus propias 9h individuales — mismas reglas que individual.\n· Al llegar uno a 9h diarias: cambia automáticamente al otro conductor y continúa sin parar.\n· Cuando los dos han agotado sus 9h: parada obligatoria de 11h — reanuda automáticamente.\n· El que conduce: icono 🚛 · El copiloto: icono 🔧 (trabajando como co-piloto).\n\n⚠️ IMPORTANTE — NO confundir conceptos:\n· CONDUCCIÓN EN EQUIPO = 2 conductores en un mismo camión (lo de arriba).\n· DUO TRAILER = es el carnet C+E ampliado para conducir el conjunto Sbcania Duo Trailer + remolque DuoBTank 64.000 L (disponible a nivel 10). Es un tipo de vehículo, no una forma de conducir.\n\nVerás el tacógrafo con barras de colores en Flota:\n🟢 Verde = OK · 🟡 Amarillo = atención · 🔴 Rojo = límite alcanzado"],
             ["5b. ¿Por qué la ETA cambia durante el viaje?", "La ETA (hora estimada de llegada a base) NO es fija. Puede adelantarse o retrasarse durante el viaje por varios motivos:\n\n🌤️ CLIMA: el tiempo cambia durante el viaje. Si llueve, hay tormenta o nieve, el camión va más lento. Si mejora, llega antes.\n\n🚦 TRÁFICO: hay tramos con más o menos tráfico según el día y la hora. En hora punta el camión va más lento, de madrugada más rápido.\n\n🛏 DESCANSOS: si el chofer agota sus 9h diarias en mitad del viaje, el camión para 11h donde esté. Esto puede añadir muchas horas al viaje.\n\n⚠️ INCIDENCIAS: durante el viaje pueden ocurrir aleatoriamente accidentes, retenciones, controles de policía, averías… Cada una añade tiempo extra al viaje.\n\n💡 La ETA se actualiza en tiempo real para mostrarte siempre la mejor estimación posible. Si ves que cambia, es normal — el sistema está adaptándose a las condiciones del viaje."],
@@ -5226,23 +5227,30 @@
                 notify("🚨 Control de alcoholemia", `${driverName} ha dado positivo. Camión ${trip.truckPlate} inmovilizado 6h con cepo. La multa es personal, no la paga la empresa.`, "danger", true);
                 return;
             }
-            // Driver-caused breakdown — needs minimum km and applies mechFactor
-            // Special edition trucks (Scabnia v8 770R) are immune to driver-caused breakdowns until 500k km
+            // Driver experience factor (progressive curve):
+            // 0–20%: x2.0 (doble riesgo), 21–50%: x1.5, 51–80%: x1.0 (normal), 81–100%: x0.6 (veterano)
             const avgExp = drivers.length ? drivers.reduce((s,d) => s + (d.experience || 0), 0) / drivers.length : 50;
-            const expFactor = clamp(1 - (avgExp - 20) / 100, 0.35, 1.0);
-            const driverBreakdownChance = breakdownImmune || !mechBreakdownsAllowed ? 0 : (lowExpDriver ? 0.08 : 0.03) * expFactor * mechFactor;
+            let driverExpFactor;
+            if (avgExp <= 20) driverExpFactor = 2.0;
+            else if (avgExp <= 50) driverExpFactor = 1.5;
+            else if (avgExp <= 80) driverExpFactor = 1.0;
+            else driverExpFactor = 0.6;
+            // Driver-caused breakdown — needs minimum km and applies mechFactor + driverExpFactor
+            // Special edition trucks (Scabnia v8 770R) are immune to driver-caused breakdowns until 500k km
+            const driverBreakdownChance = breakdownImmune || !mechBreakdownsAllowed ? 0 : 0.03 * driverExpFactor * mechFactor;
             if (Math.random() < driverBreakdownChance) return applyIncident(trip, "driver-breakdown");
-            // Random 30-min "human" stops — ONLY for drivers with experience < 50% (rookies).
-            // Low chance per check. No cost, just a 30-minute delay with a friendly message.
+            // Random 30-min "human" stops — scaled by experience (rookies < 50% more likely, veterans almost never)
             const rookieDriver = drivers.find(d => d.role === "Conductor" && (d.experience || 0) < 50);
-            if (rookieDriver && Math.random() < 0.0018) {
+            const humanStopChance = 0.0018 * driverExpFactor;
+            if (rookieDriver && Math.random() < humanStopChance) {
                 return applyIncident(trip, "driver-rest", rookieDriver);
             }
             // Route incidents
             // Special edition: still affected by external incidents (traffic, weather) but not mechanical
             const r = Math.random() * 100;
             // Mechanical/breakdown types (pinchazo, averia) scaled by mechFactor
-            // Non-mechanical types (control, accidente, retencion, cierre) NOT affected by km
+            // Accidentes also scaled by driverExpFactor — experienced drivers have fewer accidents
+            // Controls, retenciones, cierres NOT affected by driver experience (external factors)
             let type = null;
             // Airport hard legs: baseM boosted ~40% for more retenciones/controles.
             const baseM = (highKm ? 1.6 : 1.0) * (airportHardLeg ? 1.4 : 1.0);
@@ -5254,9 +5262,9 @@
                 else if (airportHardLeg && r < 0.8 * mechFactor + 1.5 * baseM + 2.5) type = "retencion";
             }
             else if (trip.weather === "Lluvia") { 
-                if (r < 2 * mechFactor) type = "pinchazo"; 
-                else if (r < 2 * mechFactor + 4 * baseM) type = "accidente";
-                else if (airportHardLeg && r < 2 * mechFactor + 4 * baseM + 3.0) type = "retencion";
+                if (r < 2 * mechFactor * driverExpFactor) type = "pinchazo"; 
+                else if (r < 2 * mechFactor * driverExpFactor + 4 * baseM * driverExpFactor) type = "accidente";
+                else if (airportHardLeg && r < 2 * mechFactor * driverExpFactor + 4 * baseM * driverExpFactor + 3.0) type = "retencion";
             }
             else if (trip.weather === "Tormenta") { 
                 if (r < 5 * baseM) type = "retencion"; 
@@ -5265,7 +5273,7 @@
             else if (trip.weather === "Nieve") { 
                 if (r < 8 * baseM) type = "retencion"; 
                 else if (r < 14 * baseM) type = "cierre"; 
-                else if (r < 14 * baseM + 18 * mechFactor) type = "averia"; 
+                else if (r < 14 * baseM + 18 * mechFactor * driverExpFactor) type = "averia"; 
             }
             // Special edition immune to mechanical types ("averia", "pinchazo") below immune km
             if (breakdownImmune && (type === "averia" || type === "pinchazo")) type = null;
