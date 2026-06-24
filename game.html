@@ -493,7 +493,7 @@
                     <div class="mhud" id="mobileAdrHud">ADR OK</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v2.5</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v2.6</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -521,7 +521,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v2.5</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v2.6</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -2077,17 +2077,22 @@
                 }
             });
             // Initialize restStartTs for available drivers that don't have it
+            // IMPORTANT: never overwrite restStartTs if it already has a value — doing so resets
+            // the rest clock to "now" every time the game is opened, making the tacho count from scratch.
             state.workers.forEach(w => {
                 if (w.role === "Conductor" && w.status === "Disponible" && !w.restStartTs && !w.currentTripId) {
                     w.restStartTs = Date.now();
                 }
                 // Fix drivers stuck in "Descanso obligatorio" with NO active trip (e.g. the truck already
-                // returned to base but the rest state was never cleared). If they have no current trip and
-                // either have rested 11h+ or have no valid rest end, free them and reset the tacho to 0.
+                // returned to base but the rest state was never cleared). Only act if genuinely stuck:
+                // - no restUntilTs set (state is broken), OR
+                // - restUntilTs has already passed (rest is complete but event never fired)
+                // NEVER reset restStartTs if restUntilTs is still in the future — that would reset the
+                // rest clock to "now" every time the game is opened, making the tacho count from scratch.
                 if (w.role === "Conductor" && w.status === "Descanso obligatorio" && !w.currentTripId) {
-                    const restedEnough = w.restStartTs && (Date.now() - w.restStartTs) >= TACHO_DAILY_REST_HOURS * MS_HOUR;
-                    const noValidEnd = !w.restUntilTs || Date.now() >= w.restUntilTs;
-                    if (restedEnough || noValidEnd) {
+                    const noValidEnd = !w.restUntilTs;
+                    const restComplete = w.restUntilTs && Date.now() >= w.restUntilTs;
+                    if (noValidEnd || restComplete) {
                         w.status = "Disponible";
                         w.restMandatory = false;
                         w.restUntilTs = null;
@@ -2095,6 +2100,7 @@
                         w.drivingToday = 0;
                         w.restStartTs = Date.now();
                     }
+                    // If restUntilTs is still in the future: leave the driver alone, the futureEvent will fire
                 }
                 if ((w.status === "Baja médica" || w.status === "Vacaciones") && !w.leaveUntilTs) {
                     const returnEvent = state.futureEvents.find(e => e.type === "worker-return" && e.workerId === w.id);
@@ -4567,7 +4573,12 @@
                                 applyDriveHours(idx, overlapHrs);
                             } else if (leg.type === "rest" && legDurHrs >= TACHO_DAILY_REST_HOURS * 0.8) {
                                 // A long 11h rest is being crossed — reset hours so post-rest driving counts fresh
-                                resetAllDrivers();
+                                // Only reset once per rest leg (use leg end timestamp as marker to avoid double-reset)
+                                const restResetKey = `restReset_${leg.key || legStart}`;
+                                if (!trip[restResetKey]) {
+                                    trip[restResetKey] = true;
+                                    resetAllDrivers();
+                                }
                             }
                         }
                         cumHours = legEnd;
@@ -7672,7 +7683,7 @@
 
         // ===== TRILERO CONSTANTS =====
         const TRILERO_COST = 10;
-        const TRILERO_PRIZE = 50;
+        const TRILERO_PRIZE = 20;
         const TRILERO_DAILY_LIMIT = 50;
         const TRILERO_WIN_PROB = 0.28; // house edge: player wins ~28% long-term
 
