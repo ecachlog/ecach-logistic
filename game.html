@@ -7752,25 +7752,39 @@
                 <h3>Historial</h3><div class="log-list">${history || `<p class="muted">Aún no has jugado.</p>`}</div>`;
         }
         // ===== TRILERO =====
-        let _trileroAnimating = false;
-        let _trileroResult = null; // { won, correctCup, playerChoice, bolita }
+        // Trilero state machine: idle | animating | waiting_pick | revealed
+        let _trileroPhase = "idle";
+        let _trileroCorrectCup = null;
+        let _trileroResult = null;
 
         function renderTrileroTab(el) {
             state.trilero = state.trilero || { spins: 0, totalBet: 0, totalWon: 0, history: [], spinTimes: [] };
             const t = state.trilero;
             const spinsLeft = Math.max(0, TRILERO_DAILY_LIMIT - trileroSpinsLast24h());
-            const canPlay = (state.bank?.balance || 0) >= TRILERO_COST && spinsLeft > 0 && !_trileroAnimating;
             const net = (t.totalWon || 0) - (t.totalBet || 0);
             const history = (t.history || []).slice(0, 8).map(h =>
-                `<div class="log-item"><strong>${h.won ? `🎉 +${fmtMoney(TRILERO_PRIZE)}` : "❌ Sin premio"} · Elegiste taza ${h.choice}, bolita en ${h.correct}</strong><p class="muted mono">${fmtDate(h.ts)}</p></div>`
+                `<div class="log-item"><strong>${h.won ? `🎉 +${fmtMoney(TRILERO_PRIZE)}` : "❌ Sin premio"} · Elegiste vaso ${h.choice}, bolita en ${h.correct}</strong><p class="muted mono">${fmtDate(h.ts)}</p></div>`
             ).join("");
 
-            let resultHtml = "";
-            if (_trileroResult) {
-                const r = _trileroResult;
-                resultHtml = r.won
-                    ? `<div class="card" style="border-color:#4caf50;background:rgba(76,175,80,.08);text-align:center"><p style="font-size:22px">🎉 ¡Has ganado!</p><p>Elegiste la taza <strong>${r.playerChoice}</strong> y la bolita estaba ahí. <strong class="ok-text">+${fmtMoney(TRILERO_PRIZE)}</strong></p></div>`
-                    : `<div class="card" style="border-color:#e53935;background:rgba(229,57,53,.06);text-align:center"><p style="font-size:22px">❌ ¡Has fallado!</p><p>Elegiste la taza <strong>${r.playerChoice}</strong> pero la bolita estaba en la <strong>${r.correctCup}</strong>.</p></div>`;
+            let actionHtml = "";
+            if (_trileroPhase === "idle" || _trileroPhase === "revealed") {
+                if (spinsLeft <= 0) {
+                    actionHtml = `<button class="primary" disabled>Límite diario alcanzado</button><p class="muted" style="font-size:12px;margin-top:6px">Vuelve en unas horas.</p>`;
+                } else if ((state.bank?.balance || 0) < TRILERO_COST) {
+                    actionHtml = `<button class="primary" disabled>Saldo insuficiente</button>`;
+                } else {
+                    actionHtml = `<button class="primary" data-action="trilero-insert" style="font-size:18px;padding:14px 28px;letter-spacing:1px">🪙 INSERT COIN · ${fmtMoney(TRILERO_COST)}</button>`;
+                }
+            } else if (_trileroPhase === "animating") {
+                actionHtml = `<button class="primary" disabled>🎩 Mezclando…</button>`;
+            } else if (_trileroPhase === "waiting_pick") {
+                actionHtml = `
+                    <p style="font-size:15px;font-weight:700;margin-bottom:12px">¿Debajo de cuál está la bolita?</p>
+                    <div class="row" style="justify-content:center;gap:16px">
+                        <button class="primary" data-action="trilero-pick" data-cup="1" style="font-size:24px;padding:12px 22px">1️⃣</button>
+                        <button class="primary" data-action="trilero-pick" data-cup="2" style="font-size:24px;padding:12px 22px">2️⃣</button>
+                        <button class="primary" data-action="trilero-pick" data-cup="3" style="font-size:24px;padding:12px 22px">3️⃣</button>
+                    </div>`;
             }
 
             el.innerHTML = `
@@ -7782,126 +7796,147 @@
                     <p style="margin:4px 0">Balance: <strong class="${net >= 0 ? "ok-text" : "danger-text"}">${net >= 0 ? "+" : ""}${fmtMoney(net)}</strong></p>
                     <p style="margin:4px 0;font-size:12px" class="muted">Tiradas disponibles hoy: <strong>${spinsLeft} / ${TRILERO_DAILY_LIMIT}</strong></p>
                 </div>
-                ${resultHtml}
                 <div class="card" style="text-align:center">
                     <h3 style="margin-top:0">🎩 El Trilero</h3>
-                    <p class="muted" style="font-size:13px">Elige la taza que esconde la bolita. Cada tirada cuesta ${fmtMoney(TRILERO_COST)}. Si aciertas, ganas ${fmtMoney(TRILERO_PRIZE)}.</p>
-                    <div id="trileroStage" style="font-size:52px;letter-spacing:16px;margin:16px 0;min-height:64px">🎩 🎩 🎩</div>
-                    <div id="trileroMsg" class="muted" style="font-size:13px;min-height:24px;margin-bottom:12px"></div>
-                    ${canPlay ? `
-                    <p style="font-size:13px;margin-bottom:8px">¿Debajo de cuál está la bolita?</p>
-                    <div class="row" style="justify-content:center;gap:12px">
-                        <button class="primary" data-action="trilero-pick" data-cup="1" style="font-size:20px;padding:10px 18px">🎩 1</button>
-                        <button class="primary" data-action="trilero-pick" data-cup="2" style="font-size:20px;padding:10px 18px">🎩 2</button>
-                        <button class="primary" data-action="trilero-pick" data-cup="3" style="font-size:20px;padding:10px 18px">🎩 3</button>
-                    </div>` : _trileroAnimating ? `<button class="primary" disabled>🎩 Mezclando…</button>` :
-                    spinsLeft <= 0 ? `<button class="primary" disabled>Límite diario alcanzado</button>` :
-                    `<button class="primary" disabled>Saldo insuficiente</button>`}
+                    <p class="muted" style="font-size:13px">Sigue la bolita entre los vasos y adivina dónde está. ${fmtMoney(TRILERO_COST)} por tirada · Premio: ${fmtMoney(TRILERO_PRIZE)}</p>
+                    <div style="font-size:56px;margin:20px 0;min-height:72px;display:flex;justify-content:center;gap:32px">
+                        <span id="cup1">🎩</span><span id="cup2">🎩</span><span id="cup3">🎩</span>
+                    </div>
+                    <div id="trileroMsg" style="font-size:14px;min-height:28px;margin-bottom:16px;font-weight:600"></div>
+                    ${actionHtml}
                 </div>
                 <h3>Historial</h3><div class="log-list">${history || `<p class="muted">Aún no has jugado.</p>`}</div>`;
         }
 
-        async function playTrilero(cup) {
-            if (_trileroAnimating) return;
+        function setTrileroCups(c1, c2, c3) {
+            const e1 = $("cup1"), e2 = $("cup2"), e3 = $("cup3");
+            if (e1) e1.textContent = c1;
+            if (e2) e2.textContent = c2;
+            if (e3) e3.textContent = c3;
+        }
+
+        function setTrileroMsg(msg, color) {
+            const em = $("trileroMsg");
+            if (em) { em.textContent = msg; if (color) em.style.color = color; else em.style.color = ""; }
+        }
+
+        async function startTrilero() {
+            if (_trileroPhase !== "idle" && _trileroPhase !== "revealed") return;
             if ((state.level || 1) < 3) return notify("Bloqueado", "El casino se desbloquea en el nivel 3.", "warn", true);
             if (trileroSpinsLast24h() >= TRILERO_DAILY_LIMIT) return notify("Límite diario", `Solo puedes hacer ${TRILERO_DAILY_LIMIT} tiradas cada 24 horas.`, "warn", true);
             if ((state.bank?.balance || 0) < TRILERO_COST) return notify("Saldo insuficiente", `Cada tirada cuesta ${fmtMoney(TRILERO_COST)}.`, "warn", true);
 
-            _trileroAnimating = true;
-            _trileroResult = null;
             state.trilero = state.trilero || { spins: 0, totalBet: 0, totalWon: 0, history: [], spinTimes: [] };
             const t = state.trilero;
-
-            // Charge bet
             state.bank.balance -= TRILERO_COST;
             t.totalBet = (t.totalBet || 0) + TRILERO_COST;
             t.spins = (t.spins || 0) + 1;
             t.spinTimes = Array.isArray(t.spinTimes) ? t.spinTimes : [];
             t.spinTimes.push(Date.now());
 
-            const stage = $("trileroStage");
-            const msg = $("trileroMsg");
-
-            // Phase 1: show bolita under chosen cup briefly
-            const cups = ["🎩", "🎩", "🎩"];
-            const revealCups = [...cups];
-            revealCups[cup - 1] = "⚪";
-            if (stage) stage.textContent = revealCups.join(" ");
-            if (msg) msg.textContent = "La bolita está aquí…";
-            await _sleep(800);
-
-            // Phase 2: hide bolita
-            if (stage) stage.textContent = "🎩 🎩 🎩";
-            if (msg) msg.textContent = "¡Ahora mezclamos!";
-            await _sleep(400);
-
-            // Phase 3: shuffle animation (fast swaps)
-            const positions = [1, 2, 3];
-            let bolita = cup; // start under chosen cup
-            const SHUFFLES = 14;
-            for (let i = 0; i < SHUFFLES; i++) {
-                // Pick two random cups to swap visually
-                const a = Math.floor(Math.random() * 3);
-                let b = Math.floor(Math.random() * 2);
-                if (b >= a) b++;
-                // Animate the swap
-                const s = ["🎩", "🎩", "🎩"];
-                s[a] = "🔄"; s[b] = "🔄";
-                if (stage) stage.textContent = s.join(" ");
-                await _sleep(120);
-                if (stage) stage.textContent = "🎩 🎩 🎩";
-                await _sleep(80);
-            }
-
-            // Determine outcome AFTER shuffle with house edge
-            let won = Math.random() < TRILERO_WIN_PROB;
-            let correctCup;
-            if (won) {
-                correctCup = cup; // bolita really is under player's choice
-            } else {
-                // Pick a different cup
-                const others = [1, 2, 3].filter(c => c !== cup);
-                correctCup = others[Math.floor(Math.random() * others.length)];
-            }
-
-            // Phase 4: reveal
-            const finalCups = ["🎩", "🎩", "🎩"];
-            finalCups[correctCup - 1] = "⚪";
-            if (stage) stage.textContent = finalCups.join(" ");
-            if (msg) msg.textContent = won ? `¡Estaba en la taza ${correctCup}! ¡Has acertado!` : `Estaba en la taza ${correctCup}. ¡Mala suerte!`;
-
-            // Resolve
-            if (won) {
-                state.bank.balance += TRILERO_PRIZE;
-                t.totalWon = (t.totalWon || 0) + TRILERO_PRIZE;
-            }
-            t.history = t.history || [];
-            t.history.unshift({ won, choice: cup, correct: correctCup, ts: Date.now() });
-            if (t.history.length > 80) t.history = t.history.slice(0, 80);
-
-            // Bank movement
-            const net = (won ? TRILERO_PRIZE : 0) - TRILERO_COST;
             const nowTs = Date.now();
             const last = state.bank.movements[0];
-            const isOpenSession = last && last._trileroSession && (nowTs - (last.ts || 0)) < 10 * 60 * 1000;
-            if (isOpenSession) {
+            const isOpen = last && last._trileroSession && (nowTs - (last.ts || 0)) < 10 * 60 * 1000;
+            if (isOpen) {
                 last._trileroSpins = (last._trileroSpins || 1) + 1;
                 last._trileroBet = (last._trileroBet || TRILERO_COST) + TRILERO_COST;
-                last._trileroWon = (last._trileroWon || 0) + (won ? TRILERO_PRIZE : 0);
-                last.amount = (last.amount || 0) + net;
-                last.ts = nowTs;
-                last.balanceAfter = state.bank.balance;
-                last.type = last.amount >= 0 ? "income" : "expense";
-                last.label = `🎩 Trilero · ${last._trileroSpins} tiradas (apostado ${fmtMoney(last._trileroBet)}, premios ${fmtMoney(last._trileroWon)})`;
+                last.amount = (last.amount || 0) - TRILERO_COST;
+                last.ts = nowTs; last.balanceAfter = state.bank.balance; last.type = "expense";
+                last.label = `🎩 Trilero · ${last._trileroSpins} tiradas (apostado ${fmtMoney(last._trileroBet)}, premios ${fmtMoney(last._trileroWon || 0)})`;
             } else {
-                state.bank.movements.unshift({ id: uid("mov"), type: net >= 0 ? "income" : "expense", label: `🎩 Trilero · 1 tirada (apostado ${fmtMoney(TRILERO_COST)}, premios ${fmtMoney(won ? TRILERO_PRIZE : 0)})`, amount: net, ts: nowTs, balanceAfter: state.bank.balance, _trileroSession: true, _trileroSpins: 1, _trileroBet: TRILERO_COST, _trileroWon: won ? TRILERO_PRIZE : 0 });
+                state.bank.movements.unshift({ id: uid("mov"), type: "expense", label: `🎩 Trilero · 1 tirada (apostado ${fmtMoney(TRILERO_COST)}, premios 0€)`, amount: -TRILERO_COST, ts: nowTs, balanceAfter: state.bank.balance, _trileroSession: true, _trileroSpins: 1, _trileroBet: TRILERO_COST, _trileroWon: 0 });
                 state.bank.movements = state.bank.movements.slice(0, 300);
             }
 
-            _trileroResult = { won, correctCup, playerChoice: cup };
-            _trileroAnimating = false;
+            _trileroPhase = "animating";
+            _trileroResult = null;
+            renderCasino();
+
+            // Show ball under cup 2 briefly
+            setTrileroCups("🎩", "⚪", "🎩");
+            setTrileroMsg("Fíjate bien en la bolita…");
+            await _sleep(1000);
+            setTrileroCups("🎩", "🎩", "🎩");
+            setTrileroMsg("¡Ahora mezclamos!");
+            await _sleep(500);
+
+            // Shuffle: ball moves visibly between cups
+            let ballPos = 2; // starts under cup 2
+            const SHUFFLES = 16;
+            for (let i = 0; i < SHUFFLES; i++) {
+                const fast = i > 9;
+                const veryFast = i > 13;
+                // Decide which two cups to swap
+                let a, b;
+                if (Math.random() < 0.6) {
+                    a = ballPos;
+                    const others = [1,2,3].filter(c => c !== ballPos);
+                    b = others[Math.floor(Math.random() * others.length)];
+                } else {
+                    const others = [1,2,3].filter(c => c !== ballPos);
+                    a = others[0]; b = others[1];
+                }
+                // Show ball peeking as cups lift
+                const lifted = ["🎩","🎩","🎩"];
+                lifted[a-1] = "🪣"; lifted[b-1] = "🪣";
+                if (ballPos === a || ballPos === b) lifted[ballPos-1] = "⚪";
+                setTrileroCups(lifted[0], lifted[1], lifted[2]);
+                setTrileroMsg(veryFast ? "⚡ ¡Muy rápido!" : fast ? "🔄 Cada vez más rápido…" : "🔄 Mezclando…");
+                await _sleep(veryFast ? 65 : fast ? 95 : 140);
+                // Move ball
+                if (ballPos === a) ballPos = b;
+                else if (ballPos === b) ballPos = a;
+                setTrileroCups("🎩","🎩","🎩");
+                await _sleep(veryFast ? 55 : fast ? 85 : 110);
+            }
+
+            // House edge: decide real outcome
+            const won = Math.random() < TRILERO_WIN_PROB;
+            if (won) {
+                _trileroCorrectCup = ballPos;
+            } else {
+                const others = [1,2,3].filter(c => c !== ballPos);
+                _trileroCorrectCup = others[Math.floor(Math.random() * others.length)];
+            }
+
+            _trileroPhase = "waiting_pick";
+            setTrileroCups("🎩","🎩","🎩");
+            setTrileroMsg("");
+            renderCasino();
+        }
+
+        async function playTrilero(cup) {
+            if (_trileroPhase !== "waiting_pick") return;
+            const won = cup === _trileroCorrectCup;
+            const t = state.trilero;
+
+            _trileroPhase = "revealed";
+            const cups = ["🎩","🎩","🎩"];
+            cups[_trileroCorrectCup - 1] = "⚪";
+            if (cup !== _trileroCorrectCup) cups[cup - 1] = "🫙";
+            setTrileroCups(cups[0], cups[1], cups[2]);
+            setTrileroMsg(won ? "🎉 ¡Correcto! La bolita estaba ahí." : `❌ ¡Fallaste! Estaba en el vaso ${_trileroCorrectCup}.`, won ? "#4caf50" : "#e53935");
+            await _sleep(1500);
+
+            if (won) {
+                state.bank.balance += TRILERO_PRIZE;
+                t.totalWon = (t.totalWon || 0) + TRILERO_PRIZE;
+                const last = state.bank.movements[0];
+                if (last && last._trileroSession) {
+                    last._trileroWon = (last._trileroWon || 0) + TRILERO_PRIZE;
+                    last.amount = (last.amount || 0) + TRILERO_PRIZE;
+                    last.balanceAfter = state.bank.balance;
+                    last.type = last.amount >= 0 ? "income" : "expense";
+                    last.label = `🎩 Trilero · ${last._trileroSpins} tiradas (apostado ${fmtMoney(last._trileroBet)}, premios ${fmtMoney(last._trileroWon)})`;
+                }
+            }
+
+            t.history = t.history || [];
+            t.history.unshift({ won, choice: cup, correct: _trileroCorrectCup, ts: Date.now() });
+            if (t.history.length > 80) t.history = t.history.slice(0, 80);
+            _trileroResult = { won, correctCup: _trileroCorrectCup, playerChoice: cup };
             renderCasino(); saveGame(true);
-            if (won) notify("🎉 ¡Has ganado en el Trilero!", `Elegiste la taza ${cup} y la bolita estaba ahí. +${fmtMoney(TRILERO_PRIZE)}`, "ok", true);
+            if (won) notify("🎉 ¡Has ganado en el Trilero!", `Elegiste el vaso ${cup} y la bolita estaba ahí. +${fmtMoney(TRILERO_PRIZE)}`, "ok", true);
         }
 
 
@@ -12234,6 +12269,7 @@
             if (action === "spin-slots-50") spinSlots50();
             if (action === "slots-stop") stopSlotsAuto();
             if (action === "casino-tab") { _casinoTab = btn.dataset.tab; renderCasino(); return; }
+            if (action === "trilero-insert") { startTrilero(); return; }
             if (action === "trilero-pick") { playTrilero(parseInt(btn.dataset.cup)); return; }
             if (action === "change-tires") showTireChangeOptions(id);
             if (action === "tire-change-confirm") changeTires(btn.dataset.vehicle, btn.dataset.mode);
