@@ -12233,8 +12233,8 @@
             if (action === "spin-slots") spinSlots();
             if (action === "spin-slots-50") spinSlots50();
             if (action === "slots-stop") stopSlotsAuto();
-            if (action === "casino-tab") { _casinoTab = el.dataset.tab; renderCasino(); return; }
-            if (action === "trilero-pick") { playTrilero(parseInt(el.dataset.cup)); return; }
+            if (action === "casino-tab") { _casinoTab = btn.dataset.tab; renderCasino(); return; }
+            if (action === "trilero-pick") { playTrilero(parseInt(btn.dataset.cup)); return; }
             if (action === "change-tires") showTireChangeOptions(id);
             if (action === "tire-change-confirm") changeTires(btn.dataset.vehicle, btn.dataset.mode);
             if (action === "pass-itv") passItv(id, btn.dataset.kind);
