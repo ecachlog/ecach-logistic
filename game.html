@@ -8805,7 +8805,10 @@
                 <div class="card">
                     <div class="row" style="justify-content:space-between;align-items:center">
                         <h3 style="margin:0">🛢️ Pedidos de gasolinera</h3>
-                        <button class="ghost small" data-action="refresh-gas-stations">🔄 Actualizar</button>
+                        <div class="row" style="gap:6px">
+                            <button class="ghost small" data-action="refresh-gas-stations">🔄 Actualizar</button>
+                            ${isOwner ? `<button class="ghost small" data-action="cleanup-gas-orders" style="border-color:#e53935;color:#e53935">🧹 Limpiar atascados</button>` : ""}
+                        </div>
                     </div>
                     <p class="muted" style="font-size:12px">Pedidos de reabastecimiento pendientes. Acéptalos para llevarlos a la gasolinera con tus camiones (solo camiones normales, no Duo). Pasan a Pedidos → Aceptados.</p>
                     <div id="gasOrdersList"><p class="muted">Pulsa "Actualizar" para ver los pedidos.</p></div>
@@ -8830,6 +8833,17 @@
             refreshGasStationsPanel();
             // Auto-load airport contracts if the office is built
             if (_allianceData?.alliance?.airportOffice) loadAirportContracts();
+        }
+
+        async function cleanupGasOrders() {
+            if (!confirm("🧹 Limpiar pedidos de gasolinera atascados\n\nEsto liberará todos los pedidos que estén bloqueados (aceptados pero sin enviar más de 1h, o enviados pero sin completar más de 48h) para que vuelvan a estar disponibles.\n\n¿Continuar?")) return;
+            try {
+                const r = await apiCall("POST", "/api/gas-stations/orders/owner-cleanup");
+                notify("🧹 Limpieza completada", `${r.cleaned || 0} pedido(s) atascado(s) liberado(s). Pulsa Actualizar para ver el resultado.`, "ok", true);
+                await refreshGasStationsPanel();
+            } catch (e) {
+                notify("Error", e.message || "No se pudo limpiar.", "danger", true);
+            }
         }
 
         async function refreshGasStationsPanel() {
@@ -12049,6 +12063,7 @@
             if (action === "refresh-weekly-ranking") return refreshWeeklyRanking();
             if (action === "build-gas-station") return startBuildGasStation();
             if (action === "refresh-gas-stations") return refreshGasStationsPanel();
+            if (action === "cleanup-gas-orders") return cleanupGasOrders();
             if (action === "build-airport-office") return buildAirportOffice();
             if (action === "refresh-airport-contracts") return loadAirportContracts();
             if (action === "accept-airport-contract") return acceptAirportContract(parseInt(btn.dataset.id, 10));
