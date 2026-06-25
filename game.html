@@ -808,6 +808,8 @@
                             }
                             if (typeof renderAll === "function") renderAll();
                             if (typeof drawMap === "function") drawMap(true);
+                            setTimeout(() => { if (typeof drawMap === "function") drawMap(true); }, 500);
+                            setTimeout(() => { if (typeof drawMap === "function") drawMap(true); }, 1500);
                             if (typeof renderAccount === "function") renderAccount();
                             if (typeof updateHeaderAuth === "function") updateHeaderAuth();
                             if (typeof checkAllianceMembership === "function") { try { checkAllianceMembership(); } catch(e) {} }
