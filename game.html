@@ -2599,7 +2599,17 @@
         }
 
         function icon(html, cls = "") {
-            return L.divIcon({ className: `ecach-marker ${cls}`, html: `<span>${html}</span>`, iconSize: [34, 34], iconAnchor: [17, 17] });
+            const styles = {
+                "": "border-color:#e85d04;color:#ff8c42;box-shadow:0 0 18px rgba(232,93,4,.5)",
+                "client": "border-color:#39a9ff;color:#39a9ff;box-shadow:0 0 16px rgba(57,169,255,.35)",
+                "truck": "border-color:#37c759;color:#37c759;box-shadow:0 0 16px rgba(53,199,89,.35)",
+                "external": "border-color:#aaa;color:#ccc;box-shadow:0 0 16px rgba(232,232,232,.22)",
+                "orange": "border-color:#e85d04;color:#ff8c42;box-shadow:0 0 18px rgba(232,93,4,.5)",
+                "alliance": "border-color:#b06cf0;color:#d09cff;box-shadow:0 0 18px rgba(156,39,176,.55);background:rgba(40,10,50,.92)"
+            };
+            const s = styles[cls] || styles[""];
+            const div = `<div style="display:grid;place-items:center;width:34px;height:34px;border-radius:50%;border:2px solid;background:rgba(10,10,10,.92);font-size:18px;${s}">${html}</div>`;
+            return L.divIcon({ className: "", html: div, iconSize: [34, 34], iconAnchor: [17, 17] });
         }
 
         function baseFromWarehouse(warehouse) {
@@ -11410,7 +11420,10 @@
                         driver.restUntilTs = null;
                         driver.restStartTs = Date.now();
                         driver.restMandatory = false;
-                        driver.continuousDriving = 0;
+                        // DO NOT reset continuousDriving or drivingToday here.
+                        // If the driver conducted hours after the last 11h rest, those hours must
+                        // remain accumulated. They only reset when a full 11h rest is completed
+                        // (driver-tacho-reset or driver-rest-complete futureEvent).
                     }
                 });
             }
