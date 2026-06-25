@@ -8640,7 +8640,7 @@
             const requests = data.requests || [];
             const isOwner = data.isOwner;
             const hasPowers = data.hasPowers;
-            const canExpand = isOwner && a.maxSlots < 30 && (a.balance || 0) >= 50000;
+            const canExpand = isOwner && a.maxSlots < 30 && (a.privateFund || 0) >= 50000;
             const expandText = a.maxSlots >= 30 ? "Plazas al máximo (30/30)" : `Ampliar plazas (+5 por 50.000€ del fondo)`;
             const memberRows = members.map(m => {
                 const lastSeenText = m.lastSeen ? `Último acceso: ${fmtDate(m.lastSeen)}` : "Sin conexión registrada";
@@ -9149,14 +9149,14 @@
 
         async function expandAlliance() {
             if (!_allianceData?.alliance) return;
-            if (!confirm(`¿Ampliar +5 plazas en la alianza?\n\n💰 Coste: 50.000 € del FONDO COMÚN de la alianza\n\nNuevas plazas máximas: ${Math.min(30, _allianceData.alliance.maxSlots + 5)}`)) return;
+            if (!confirm(`¿Ampliar +5 plazas en la alianza?\n\n💰 Coste: 50.000 € del FONDO PRIVADO de la alianza\n\nNuevas plazas máximas: ${Math.min(30, _allianceData.alliance.maxSlots + 5)}`)) return;
             try {
                 await apiCall("POST", `/api/alliances/${_allianceData.alliance.id}/expand`);
-                notify("Plazas ampliadas", "+5 plazas añadidas. Se han descontado 50.000€ del fondo común.", "ok", true);
+                notify("Plazas ampliadas", "+5 plazas añadidas. Se han descontado 50.000€ del fondo privado.", "ok", true);
                 await reloadStateFromCloud();
                 renderAllianceMine();
             } catch (e) {
-                const msg = e.message.includes("max_slots_reached") ? "Ya tienes el máximo de plazas (30)." : (e.message.includes("insufficient_fund") ? "El fondo común de la alianza no tiene 50.000€." : e.message);
+                const msg = e.message.includes("max_slots_reached") ? "Ya tienes el máximo de plazas (30)." : (e.message.includes("insufficient_fund") ? "El fondo privado de la alianza no tiene 50.000€." : e.message);
                 notify("Error", msg, "danger", true);
             }
         }
