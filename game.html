@@ -2521,395 +2521,155 @@
             }
         }
 
+        // ===== MAP =====
+        let map = null;
+        let _mapLayers = { base: null, clients: {}, trucks: {}, lines: {}, offices: {}, gasStations: {} };
+        let _lastStaticKey = null;
+
         function initMap() {
-            if (typeof L === "undefined") {
-                notify("Leaflet no cargado", "No se ha podido cargar el mapa CDN. Revisa conexión a internet.", "danger", true);
-                return;
-            }
+            const el = document.getElementById("map");
+            if (!el || typeof L === "undefined") return;
             map = L.map("map", { zoomControl: false }).setView([47.2, 6.8], 5);
             L.control.zoom({ position: "bottomright" }).addTo(map);
-            const baseTiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", { maxZoom: 19, subdomains: "abcd", attribution: "&copy; OpenStreetMap contributors &copy; CARTO" }).addTo(map);
-            baseTiles.on("tileerror", () => {
-                if (state.flags["map-tile-error"]) return;
-                state.flags["map-tile-error"] = true;
-                notify("Mapa base bloqueado", "El proveedor de teselas no responde o devuelve 403. Se está usando CARTO/OSM claro sin clave para evitar el bloqueo.", "warn");
-            });
-            mapLayers.warehouse = L.layerGroup().addTo(map);
-            mapLayers.offices = L.layerGroup().addTo(map);
-            mapLayers.ports = L.layerGroup().addTo(map);
-            mapLayers.clients = L.layerGroup().addTo(map);
-            mapLayers.gasStations = L.layerGroup().addTo(map);
-            mapLayers.gasCircles = L.layerGroup().addTo(map);
-            mapLayers.routes = L.layerGroup().addTo(map);
-            mapLayers.trucks = L.layerGroup().addTo(map);
-            map.on("click", event => {
-                pinnedTripId = null;
-                if (window._movingOfficeId) {
-                    confirmMoveCommercialOffice(event.latlng.lat, event.latlng.lng);
-                    return;
-                }
-                // Admin: relocating an existing gas station to a new point (no 50km validation).
-                if (movingGasStationId) {
-                    const lat = event.latlng.lat, lng = event.latlng.lng;
-                    const gs = (state.gasStations || []).find(g => g.id === movingGasStationId);
-                    const name = gs ? gs.name : "gasolinera";
-                    if (confirm(`🔧 ADMIN: ¿Mover "${name}" a esta nueva ubicación?\n\n${fmtCoords({ lat, lng })}\n\nSolo deberías hacerlo una vez. ¿Confirmar?`)) {
-                        moveGasStationTo(movingGasStationId, lat, lng);
-                    }
-                    movingGasStationId = null;
-                    drawMap(true);
-                    return;
-                }
-                // Choosing where to build a gas station: validate 50 km from ports and existing stations
-                if (addingGasStationMode) {
-                    const lat = event.latlng.lat, lng = event.latlng.lng;
-                    let tooClose = null;
-                    for (const port of loadingPorts) {
-                        if (haversineKm(lat, lng, port.lat, port.lng) < 50) { tooClose = `puerto ${port.name}`; break; }
-                    }
-                    if (!tooClose) for (const gs of (state.gasStations || [])) {
-                        if (haversineKm(lat, lng, gs.lat, gs.lng) < 50) { tooClose = gs.name; break; }
-                    }
-                    if (tooClose) {
-                        notify("Demasiado cerca", `No puedes construir aquí: estás a menos de 50 km de ${tooClose} (zona roja). Elige un punto fuera de los círculos rojos.`, "warn", true);
-                        return;
-                    }
-                    selectedGasPoint = { lat, lng };
-                    drawMap(true);
-                    confirmBuildGasStation(lat, lng);
-                    return;
-                }
-                if (!state.initialized || addingOfficeMode) {
-                    selectedWarehouse = { lat: event.latlng.lat, lng: event.latlng.lng };
-                    let coordsTxt = `${selectedWarehouse.lat.toFixed(5)}, ${selectedWarehouse.lng.toFixed(5)}`;
-                    if (!addingOfficeMode) {
-                        try {
-                            const p = nearestLoadingPortFor(null, selectedWarehouse);
-                            if (p) {
-                                const d = Math.round(haversineKm(selectedWarehouse.lat, selectedWarehouse.lng, p.lat, p.lng));
-                                coordsTxt += d <= 20 ? ` · ⚓ ${p.name} a ${d} km ✅` : ` · ⚓ ${p.name} a ${d} km ⚠️ (máx 20 km)`;
-                            }
-                        } catch (e) { /* ignore */ }
-                    }
-                    $("selectedCoords").textContent = coordsTxt;
-                    drawMap(true);
-                }
-            });
-            // Prevent clicks inside the setup panel from reaching Leaflet
-            const setupOverlay = document.getElementById("setupOverlay");
-            if (setupOverlay) L.DomEvent.disableClickPropagation(setupOverlay);
+            L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+                maxZoom: 19, subdomains: "abcd",
+                attribution: "&copy; OpenStreetMap contributors &copy; CARTO"
+            }).addTo(map);
+            // Patch Leaflet divIcon style after map init
+            const st = document.createElement("style");
+            st.textContent = ".leaflet-div-icon{background:transparent!important;border:none!important;box-shadow:none!important}";
+            document.head.appendChild(st);
+            setTimeout(() => map && map.invalidateSize(), 300);
         }
 
-        function icon(html, cls = "") {
-            return L.divIcon({ className: `ecach-marker ${cls}`, html: `<span>${html}</span>`, iconSize: [34, 34], iconAnchor: [17, 17] });
+        function mkIcon(emoji, color, shadow) {
+            const html = `<div style="width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:19px;border:2px solid ${color};background:rgba(10,10,10,.93);box-shadow:0 0 14px ${shadow}">${emoji}</div>`;
+            return L.divIcon({ className: "", html, iconSize: [34, 34], iconAnchor: [17, 17] });
         }
 
-        function baseFromWarehouse(warehouse) {
-            return { id: warehouse.id, name: warehouse.name || "Base ECACH", lat: warehouse.lat, lng: warehouse.lng, address: warehouse.address, truckSlots: warehouse.truckSlots, cisternSlots: warehouse.cisternSlots, tankCapacity: warehouse.tankCapacity, tankFuel: warehouse.tankFuel || 0, rentMonthly: warehouse.rentMonthly || 0 };
+        function icon(html, cls) {
+            const map_ = {
+                "client":   ["#39a9ff","rgba(57,169,255,.4)"],
+                "truck":    ["#37c759","rgba(53,199,89,.4)"],
+                "external": ["#aaa","rgba(200,200,200,.25)"],
+                "orange":   ["#e85d04","rgba(232,93,4,.5)"],
+                "alliance": ["#b06cf0","rgba(156,39,176,.5)"],
+                "":         ["#e85d04","rgba(232,93,4,.5)"]
+            };
+            const [c, s] = map_[cls||""] || map_[""];
+            return mkIcon(html, c, s);
         }
-
-        function getBaseById(id) {
-            const base = (state.bases || []).find(item => item.id === id);
-            if (base && state.warehouse && base.id === state.warehouse.id) {
-                Object.assign(base, baseFromWarehouse(state.warehouse));
-            }
-            return base || state.warehouse || null;
-        }
-
-        function chooseBaseId(label = "base") {
-            const bases = state.bases?.length ? state.bases : (state.warehouse ? [baseFromWarehouse(state.warehouse)] : []);
-            if (bases.length <= 1) return bases[0]?.id || state.warehouse?.id || null;
-            const list = bases.map((base, index) => `${index + 1}. ${base.name} (${base.address || `${base.lat.toFixed(3)}, ${base.lng.toFixed(3)}`})`).join("\n");
-            const choice = Number(prompt(`Elige ${label}:\n${list}`, "1"));
-            return bases[clamp((choice || 1) - 1, 0, bases.length - 1)]?.id || bases[0].id;
-        }
-
-        function baseSlotUsage(baseId, collection) {
-            const primaryId = state.warehouse?.id;
-            return collection.filter(item => (item.baseId || primaryId) === baseId).reduce((sum, item) => sum + (item.duoTrailer && item.capacity >= DUO_ORDER_LITERS ? 2 : 1), 0);
-        }
-
-        function clientLooksOffRoad(client) {
-            if (!Number.isFinite(client.lat) || !Number.isFinite(client.lng)) return true;
-            if (isInSea(client.lat, client.lng)) return true;
-            return !landClientAnchors.some(([, lat, lng]) => haversineKm(client.lat, client.lng, lat, lng) <= 30);
-        }
-
-        function relocateClientToRoad(client, index = 0) {
-            const base = getBaseById(client.baseId) || state.warehouse || selectedWarehouse;
-            if (!base) return;
-            const loadPort = nearestLoadingPortFor(null, base);
-            const anchors = landClientAnchors.map(([city, lat, lng]) => ({ city, lat, lng, route: calculateOrderRoute(loadPort, { lat, lng }, base) }))
-                .filter(anchor => anchor.route.totalKm <= MAX_ORDER_ROUND_KM)
-                .sort((a, b) => haversineKm(base.lat, base.lng, a.lat, a.lng) - haversineKm(base.lat, base.lng, b.lat, b.lng));
-            const anchor = anchors[index % Math.max(1, anchors.length)] || { city: "Poligono industrial", lat: base.lat, lng: base.lng };
-            const jitter = ((index % 5) - 2) * 0.003;
-            client.lat = anchor.lat + jitter;
-            client.lng = anchor.lng - jitter;
-            client.country = countryFromCoords(client.lat, client.lng);
-            client.region = getRegion(client.lat, client.lng);
-            client.address = exactClientAddress(anchor.city, client.country, index);
-            client.baseId = base.id;
-            client.landLocked = true;
-        }
-
-        function normalizeClientLocation(client, index = 0) {
-            if (!client) return client;
-            if (clientLooksOffRoad(client)) relocateClientToRoad(client, index);
-            ensureClientAddressDetail(client, index);
-            return client;
-        }
-
-        function exactClientAddress(city, country, index = 0) {
-            const roads = ["Poligono Industrial", "Calle Energia", "Avenida Transporte ADR", "Camino Depositos", "Calle Terminal"];
-            const number = 12 + ((index * 17) % 86);
-            return `${roads[index % roads.length]} ${number}, ${city || "Poligono industrial"}, ${country}`;
-        }
-
-        function ensureClientAddressDetail(client, index = 0) {
-            if (!client) return false;
-            if (client.address && client.address.includes(",")) return false;
-            const rawCity = String(client.address || "").split("·")[0].trim();
-            const city = rawCity || landClientAnchors[index % landClientAnchors.length]?.[0] || "Poligono industrial";
-            client.country = client.country || countryFromCoords(client.lat, client.lng);
-            client.address = exactClientAddress(city, client.country, index);
-            return true;
-        }
-
-        // ── Map rendering split into static (drawMap) + dynamic (updateTruckMarkers) ──
-        // drawMap()         → rebuilds ports, base, clients, routes. Called only when something structural changes.
-        // updateTruckMarkers() → moves existing truck markers with setLatLng(). Called every tick second.
-        // This avoids destroying/recreating markers every second, making trucks actually move on the map.
-
-        let _truckMarkers = {};   // tripId → L.Marker
-        let _routeLines = {};     // tripId → { done: L.Polyline, remaining: L.Polyline }
-        let _lastStaticKey = "";  // hash to detect when static layer needs rebuild
 
         function _staticKey() {
-            const base = state.warehouse || selectedWarehouse;
-            const trips = state.activeTrips.map(t => t.id + (t.routeSource || "")).join(",");
-            const clients = state.clients.filter(c => c.active).map(c => c.id).join(",");
-            const offices = (state.commercialOffices || []).map(o => o.id).join(",");
-            const allianceOrders = state.orders.filter(o => o.allianceOrder && (o.status === "accepted" || o.status === "in_transit")).map(o => o.id).join(",");
-            return `${base?.lat},${base?.lng},${trips},${clients},${offices},${addingOfficeMode},${allianceOrders},${addingGasStationMode},${selectedGasPoint?.lat},${(state.gasStations||[]).length},${(state.gasStations||[]).map(g=>g.stock).join("|")}`;
+            if (!state) return "";
+            const base = state.warehouse || null;
+            const trips = (state.activeTrips||[]).map(t => t.id).join(",");
+            const clients = (state.clients||[]).filter(c => c.active).map(c => c.id).join(",");
+            return `${base?.lat},${base?.lng},${trips},${clients}`;
         }
 
         function drawMap(force = false) {
-            if (!map || typeof L === "undefined") return;
+            if (!map || typeof L === "undefined" || !state) return;
+            const key = _staticKey();
+            if (!force && key === _lastStaticKey) { updateTruckMarkers(); return; }
+            _lastStaticKey = key;
 
-            const staticKey = _staticKey();
-            const needsStaticRebuild = force || staticKey !== _lastStaticKey;
+            // Clear all layers
+            Object.values(_mapLayers.clients).forEach(m => map.removeLayer(m));
+            Object.values(_mapLayers.trucks).forEach(v => { if (v.marker) map.removeLayer(v.marker); if (v.doneLine) map.removeLayer(v.doneLine); if (v.remainingLine) map.removeLayer(v.remainingLine); });
+            Object.values(_mapLayers.offices).forEach(m => map.removeLayer(m));
+            Object.values(_mapLayers.gasStations).forEach(m => map.removeLayer(m));
+            if (_mapLayers.base) { map.removeLayer(_mapLayers.base); _mapLayers.base = null; }
+            _mapLayers.clients = {}; _mapLayers.trucks = {}; _mapLayers.offices = {}; _mapLayers.gasStations = {};
 
-            if (needsStaticRebuild) {
-                _lastStaticKey = staticKey;
+            const base = state.warehouse || null;
 
-                // Clear static layers
-                mapLayers.ports.clearLayers();
-                mapLayers.warehouse.clearLayers();
-                mapLayers.offices.clearLayers();
-                mapLayers.clients.clearLayers();
-
-                // Ports & base
-                const base = state.warehouse || selectedWarehouse;
-                loadingPorts.forEach(port => L.marker([port.lat, port.lng], { icon: icon("⚓", "orange") })
-                    .bindPopup(`<strong>${port.name}</strong><br>${port.address}`)
-                    .addTo(mapLayers.ports));
-                if (base) {
-                    const nearLoad = nearestLoadingPortFor(null, base);
-                    if (nearLoad && !loadingPorts.some(p => p.id === nearLoad.id))
-                        L.marker([nearLoad.lat, nearLoad.lng], { icon: icon("⛽", "orange") })
-                            .bindPopup(`<strong>${nearLoad.name}</strong><br>${nearLoad.address}`)
-                            .addTo(mapLayers.ports);
-                }
-                (state.bases?.length ? state.bases : (base ? [base] : [])).forEach(b =>
-                    L.marker([b.lat, b.lng], { icon: icon(MAIN_BASE_ICON) })
-                        .bindPopup(`<strong>${b.companyName || b.name || "ECACH LOGISTIC"}</strong><br>${b.address || "Base principal"}`)
-                        .addTo(mapLayers.warehouse));
-                (state.commercialOffices || []).forEach(office =>
-                    L.marker([office.lat, office.lng], { icon: icon("🏢", "client") })
-                        .bindPopup(`<strong>${office.name}</strong><br>Oficina comercial<br>${office.address}`)
-                        .addTo(mapLayers.offices));
-                if (addingOfficeMode && selectedWarehouse)
-                    L.marker([selectedWarehouse.lat, selectedWarehouse.lng], { icon: icon("🏢", "orange") })
-                        .bindPopup(`<strong>Oficina comercial seleccionada</strong><br>${fmtCoords(selectedWarehouse)}`)
-                        .addTo(mapLayers.offices);
-
-                // Gas stations (alliance) — visible to all members
-                mapLayers.gasStations.clearLayers();
-                mapLayers.gasCircles.clearLayers();
-                (state.gasStations || []).forEach(gs => {
-                    const lowTxt = gs.stock < 10000 ? `<br><span style="color:#ff4d4d">⚠️ Stock bajo</span>` : "";
-                    L.marker([gs.lat, gs.lng], { icon: icon("⛽", gs.stock <= 0 ? "danger" : "alliance") })
-                        .bindPopup(`<strong>${gs.name}</strong><br>⛽ Gasolinera de alianza<br>Stock: ${fmtLiters(gs.stock)} / ${fmtLiters(gs.capacity)}<br>Saldo: <span style="color:${gs.balance < 0 ? "#e5484d" : "#30a46c"}">${fmtMoney4(gs.balance)}</span>${lowTxt}`)
-                        .addTo(mapLayers.gasStations);
-                });
-                // Control tower icon for the player's OWN active airport contract (only theirs, only while
-                // the contract is active or has trips in transit). Shown on the contract's airport location.
-                try {
-                    const ac = state.airportContracts;
-                    const myUid = fbUser?.uid;
-                    if (ac && Array.isArray(ac.mine)) {
-                        ac.mine.filter(c => c.status === "taken" && c.takenByUid === myUid && c.airport)
-                            .forEach(c => {
-                                L.marker([c.airport.lat, c.airport.lng], { icon: icon("🛬", "alliance") })
-                                    .bindPopup(`<strong>🛬 ${c.airport.name}</strong><br>Contrato aeroportuario activo<br>${c.trips} viajes · ${c.pricePerKm.toFixed(2)} €/km`)
-                                    .addTo(mapLayers.gasStations);
-                            });
-                    }
-                } catch (e) {}
-                // around every port and every existing station, plus a live marker at the chosen point.
-                if (addingGasStationMode) {
-                    const circleColor = "#ff3b3b";
-                    loadingPorts.forEach(port => L.circle([port.lat, port.lng], { radius: 50000, color: circleColor, weight: 1, fillColor: circleColor, fillOpacity: 0.12 }).addTo(mapLayers.gasCircles));
-                    (state.gasStations || []).forEach(gs => L.circle([gs.lat, gs.lng], { radius: 50000, color: circleColor, weight: 1, fillColor: circleColor, fillOpacity: 0.12 }).addTo(mapLayers.gasCircles));
-                    if (selectedGasPoint)
-                        L.marker([selectedGasPoint.lat, selectedGasPoint.lng], { icon: icon("⛽", "orange") })
-                            .bindPopup(`<strong>Gasolinera seleccionada</strong><br>${fmtCoords(selectedGasPoint)}`)
-                            .addTo(mapLayers.gasStations);
-                }
-
-                // Clients
-                const visibleClientIds = orderClientIdsInUse();
-                state.clients.filter(c => c.active && visibleClientIds.has(c.id)).forEach((c, index) => {
-                    normalizeClientLocation(c, index);
-                    L.marker([c.lat, c.lng], { icon: icon("👤", "client") })
-                        .bindPopup(`<strong>${c.name}</strong><br>${c.address}<br>${c.country}`)
-                        .addTo(mapLayers.clients);
-                });
-
-                // Alliance contract destinations (distinctive purple icon)
-                const allianceDestinations = {};
-                state.orders.filter(o => o.allianceOrder && (o.status === "accepted" || o.status === "in_transit") && o.destination && Number.isFinite(o.destination.lat) && Number.isFinite(o.destination.lng)).forEach(o => {
-                    const key = `${o.destination.lat.toFixed(3)},${o.destination.lng.toFixed(3)}`;
-                    if (!allianceDestinations[key]) {
-                        allianceDestinations[key] = { lat: o.destination.lat, lng: o.destination.lng, name: o.clientName, address: o.unloadAddress, count: 0 };
-                    }
-                    allianceDestinations[key].count++;
-                });
-                Object.values(allianceDestinations).forEach(d => {
-                    L.marker([d.lat, d.lng], { icon: icon("👤", "alliance") })
-                        .bindPopup(`<strong>${d.name}</strong><br>${d.address}<br>Contrato de alianza · ${d.count} viaje(s) pendiente(s)`)
-                        .addTo(mapLayers.clients);
-                });
-
-                // Destinations of shared alliance trips in progress (so the helper sees where they go)
-                state.activeTrips.forEach(trip => {
-                    const order = state.orders.find(o => o.id === trip.orderId);
-                    if (order && order.sharedHelper && trip.destination && Number.isFinite(trip.destination.lat) && Number.isFinite(trip.destination.lng)) {
-                        L.marker([trip.destination.lat, trip.destination.lng], { icon: icon("👤", "client") })
-                            .bindPopup(`<strong>${order.clientName || "Destino alianza"}</strong><br>${order.unloadAddress || ""}<br>Pedido compartido de alianza`)
-                            .addTo(mapLayers.clients);
-                    }
-                });
-
-                // Load points for active trips
-                state.activeTrips.forEach(trip => {
-                    if (trip.loadPoint)
-                        L.marker([trip.loadPoint.lat, trip.loadPoint.lng], { icon: icon("⚓", "client") })
-                            .bindPopup(`<strong>${trip.loadPoint.name || "Puerto de carga"}</strong><br>${trip.loadAddress}`)
-                            .addTo(mapLayers.ports);
-                });
+            // Base marker
+            if (base?.lat) {
+                _mapLayers.base = L.marker([base.lat, base.lng], { icon: icon("🏭", "") })
+                    .bindPopup(`<strong>Tu base</strong><br>${base.city || ""}`)
+                    .addTo(map);
             }
 
-            // ── Always: draw route lines for active trips (not only on static rebuild) ──
-            mapLayers.routes.clearLayers();
-            _routeLines = {};
-            const nowRoutes = Date.now();
-            state.activeTrips.forEach(trip => {
+            // Client markers
+            (state.clients || []).filter(c => c.active && c.lat).forEach(c => {
+                _mapLayers.clients[c.id] = L.marker([c.lat, c.lng], { icon: icon("🏢", "client") })
+                    .bindPopup(`<strong>${c.name}</strong><br>Cliente activo`)
+                    .addTo(map);
+            });
+
+            // Commercial office markers
+            (state.commercialOffices || []).filter(o => o.lat).forEach(o => {
+                _mapLayers.offices[o.id] = L.marker([o.lat, o.lng], { icon: icon("🏪", "orange") })
+                    .bindPopup(`<strong>Oficina comercial</strong><br>${o.city || ""}`)
+                    .addTo(map);
+            });
+
+            // Gas station markers
+            (state.gasStations || []).filter(g => g.lat).forEach(g => {
+                _mapLayers.gasStations[g.id] = L.marker([g.lat, g.lng], { icon: icon("⛽", "orange") })
+                    .bindPopup(`<strong>${g.name || "Gasolinera"}</strong><br>Stock: ${(g.stock||0).toLocaleString()} L`)
+                    .addTo(map);
+            });
+
+            // Trip routes and truck markers
+            (state.activeTrips || []).forEach(trip => {
                 try {
-                    ensureRoadRoute(trip);
-                    const color = trip.external ? "#8f9baa" : "#e85d04";
-                    const info = routeProgressInfo(trip, nowRoutes);
-                    const split = splitTripRouteCoords(trip, info);
-                    const doneLine = split.done.length > 1
-                        ? L.polyline(split.done, { color: "#35c759", weight: 5, opacity: .92 }).addTo(mapLayers.routes)
-                        : null;
-                    const remainingLine = split.remaining.length > 1
-                        ? L.polyline(split.remaining, { color, weight: 4, opacity: .88, dashArray: "10 12", className: "route-pulse" }).addTo(mapLayers.routes)
-                        : null;
-                    _routeLines[trip.id] = { doneLine, remainingLine, color };
-                } catch (e) { console.warn("Route draw error for trip", trip.id, e); }
+                    const coords = Array.isArray(trip.routeCoords) && trip.routeCoords.length > 1
+                        ? trip.routeCoords
+                        : (trip.origin && trip.destination ? [[trip.origin.lat, trip.origin.lng], [trip.destination.lat, trip.destination.lng]] : null);
+
+                    const info = routeProgressInfo(trip);
+                    const pct = info?.fraction || 0;
+
+                    let doneLine = null, remainingLine = null;
+                    if (coords && coords.length > 1) {
+                        const splitIdx = Math.max(0, Math.min(coords.length - 1, Math.floor(pct * coords.length)));
+                        const done = coords.slice(0, splitIdx + 1);
+                        const remaining = coords.slice(splitIdx);
+                        if (done.length > 1) doneLine = L.polyline(done, { color: "#37c759", weight: 3, opacity: 0.8 }).addTo(map);
+                        if (remaining.length > 1) remainingLine = L.polyline(remaining, { color: "#555", weight: 2, opacity: 0.6 }).addTo(map);
+                    }
+
+                    const pos = info?.currentPos || trip.origin;
+                    if (!pos?.lat) return;
+
+                    const cls = trip.external ? "external" : "truck";
+                    const emoji = trip.external ? "🚛" : "🚚";
+                    const names = (trip.driverNames || []).join(" + ") || "Sin conductor";
+                    const marker = L.marker([pos.lat, pos.lng], { icon: icon(emoji, cls) })
+                        .bindPopup(`<strong>${trip.truckPlate || ""}</strong><br>${names}<br>${Math.round((info?.fraction||0)*100)}% completado`)
+                        .addTo(map);
+
+                    _mapLayers.trucks[trip.id] = { marker, doneLine, remainingLine };
+                } catch(e) { console.warn("map trip error", trip.id, e); }
             });
 
-            // Remove truck markers for trips that no longer exist
-            const activeTripIdsNow = new Set(state.activeTrips.map(t => t.id));
-            Object.keys(_truckMarkers).forEach(id => {
-                if (!activeTripIdsNow.has(id)) {
-                    mapLayers.trucks.removeLayer(_truckMarkers[id]);
-                    delete _truckMarkers[id];
-                }
-            });
-
-            // ── Always: update truck positions (smooth movement) ──
-            updateTruckMarkers();
-
-            if (state.initialized && state.warehouse && !state.mapCentered) {
-                map.setView([state.warehouse.lat, state.warehouse.lng], 7);
-                state.mapCentered = true;
-            }
+            setTimeout(() => map && map.invalidateSize(), 100);
         }
 
         function updateTruckMarkers() {
-            if (!map || typeof L === "undefined") return;
-            const now = Date.now();
-            state.activeTrips.forEach(trip => {
-              try {
-                ensureRoadRoute(trip);
-                const info = routeProgressInfo(trip, now);
-                const pos = tripCurrentPoint(trip, info);
-                if (!pos || !Number.isFinite(pos.lat) || !Number.isFinite(pos.lng)) return;
+            if (!map || !state) return;
+            (state.activeTrips || []).forEach(trip => {
+                try {
+                    const info = routeProgressInfo(trip);
+                    const pos = info?.currentPos || trip.origin;
+                    if (!pos?.lat) return;
+                    const layers = _mapLayers.trucks[trip.id];
+                    if (!layers) { drawMap(true); return; }
+                    layers.marker.setLatLng([pos.lat, pos.lng]);
 
-                const routeLabel = trip.routeSource === "osrm" ? "carretera real OSRM" : "estimada";
-                const driverLine = tripDriverStatusLine(trip, info);
-                const popupHtml = `<strong>${trip.external ? "Autónomo externo" : trip.truckPlate}</strong><br>${tripStatusHtml(trip, info, now)}${driverLine ? `<br>${driverLine}` : ""}<br>Punto: <span class="mono">${fmtCoords(pos)}</span><br>Ruta: ${routeLabel}<br>ETA: ${fmtDate(trip.endTs)}`;
-
-                if (_truckMarkers[trip.id]) {
-                    const currentLatLng = _truckMarkers[trip.id].getLatLng();
-                    const distKm = haversineKm(currentLatLng.lat, currentLatLng.lng, pos.lat, pos.lng);
-                    if (distKm > 30) {
-                        const fraction = 30 / distKm;
-                        const interpLat = currentLatLng.lat + (pos.lat - currentLatLng.lat) * fraction;
-                        const interpLng = currentLatLng.lng + (pos.lng - currentLatLng.lng) * fraction;
-                        _truckMarkers[trip.id].setLatLng([interpLat, interpLng]);
-                    } else {
-                        _truckMarkers[trip.id].setLatLng([pos.lat, pos.lng]);
+                    const coords = Array.isArray(trip.routeCoords) && trip.routeCoords.length > 1 ? trip.routeCoords : null;
+                    if (coords && layers.doneLine && layers.remainingLine) {
+                        const pct = info?.fraction || 0;
+                        const splitIdx = Math.max(0, Math.min(coords.length - 1, Math.floor(pct * coords.length)));
+                        layers.doneLine.setLatLngs(coords.slice(0, splitIdx + 1));
+                        layers.remainingLine.setLatLngs(coords.slice(splitIdx));
                     }
-                    _truckMarkers[trip.id].getPopup()?.setContent(popupHtml);
-                } else {
-                    const m = L.marker([pos.lat, pos.lng], {
-                        icon: trip.external ? icon("🚚", "external") : icon("🚛", "truck")
-                    }).bindPopup(popupHtml, { autoClose: true, closeOnClick: true })
-                      .addTo(mapLayers.trucks);
-                    m.on("click", e => {
-                        if (e?.originalEvent) L.DomEvent.stopPropagation(e.originalEvent);
-                        pinnedTripId = trip.id;
-                        m.openPopup();
-                    });
-                    _truckMarkers[trip.id] = m;
-                }
-
-                if (pinnedTripId === trip.id) _truckMarkers[trip.id].openPopup();
-
-                const lines = _routeLines[trip.id];
-                if (lines) {
-                    const split = splitTripRouteCoords(trip, info);
-                    if (lines.doneLine && split.done.length > 1) lines.doneLine.setLatLngs(split.done);
-                    if (lines.remainingLine && split.remaining.length > 1) lines.remainingLine.setLatLngs(split.remaining);
-                }
-              } catch (e) { console.warn("Truck marker error for trip", trip.id, e); }
+                } catch(e) {}
             });
         }
 
-        function tripDriverStatusLine(trip, info = routeProgressInfo(trip)) {
-            if (!trip || trip.external) return "";
-            const names = trip.driverNames || [];
-            if (!names.length) return "";
-            const activeIdx = info?.activeLeg && typeof info.activeLeg.driverIdx === "number" ? info.activeLeg.driverIdx : 0;
-            const activeName = names[activeIdx] || names[0];
-            return names.length > 1
-                ? `Chóferes: ${names.join(" + ")}<br>Conduce ahora: <strong>${activeName}</strong>`
-                : `Chófer: <strong>${activeName}</strong>`;
-        }
 
         function tripRoutePoints(trip) {
             if (Array.isArray(trip.routePoints) && trip.routePoints.length > 1) return trip.routePoints;
