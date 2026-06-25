@@ -29,6 +29,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" crossorigin="" media="print" onload="this.media='all';this.onload=null" id="leafletCssFallback">
     <style>
         :root {
             --black: #0a0a0a;
@@ -7700,6 +7701,7 @@
         function renderCasino() {
             const el = $("casinoContent");
             if (!el) return;
+            if (!state || !state.initialized) return;
             if ((state.level || 1) < 3) {
                 el.innerHTML = `<div class="card" style="text-align:center"><h3>🔒 Casino bloqueado</h3><p class="muted">El casino se desbloquea al alcanzar el <strong>nivel 3</strong>. Sigue creciendo para poder jugar.</p></div>`;
                 return;
@@ -9813,10 +9815,12 @@
         // One-time "what's new" email per release. Bump NEWS_VERSION when there's a new update to announce.
         const NEWS_VERSION = "2026-06-actualizacion-1";
         function maybeSendNewsEmail() {
-            if (!state || !Array.isArray(state.emails)) return;
+            if (!state) return;
             state.flags = state.flags || {};
             if (state.flags.newsVersionSeen === NEWS_VERSION) return;
             state.flags.newsVersionSeen = NEWS_VERSION;
+            // News email disabled
+            return;
             addEmail(
                 "novedades@ecachlogistic.eu",
                 "🚀 Novedades de la actualización",
@@ -9847,40 +9851,6 @@
         }
         function closeModal() { $("modalBackdrop").classList.add("hidden"); }
 
-        // ===== News popup — shown once per player per news version =====
-        const CURRENT_NEWS_VERSION = "2026-06-news-1";
-        function showNewsPopupIfNeeded() {
-            try {
-                if (state.lastNewsSeen === CURRENT_NEWS_VERSION) return;
-                const newsHtml = `
-                <div id="newsPopupOverlay" style="position:fixed;inset:0;z-index:190000;background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;padding:16px">
-                    <div style="background:#11161d;border:2px solid #ff7a1a;border-radius:14px;max-width:560px;width:100%;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
-                        <div style="padding:18px 22px;border-bottom:1px solid rgba(255,122,26,.3);background:rgba(255,122,26,.08)">
-                            <h2 style="margin:0;color:#ff7a1a;font-size:20px">🎉 Novedades de ECACH Logistic</h2>
-                        </div>
-                        <div style="padding:18px 22px;overflow-y:auto;color:#d8dee6;line-height:1.6;font-size:14px">
-                            <p style="margin:0 0 14px"><strong style="color:#ff9d4d">🚛 Flota organizada por pestañas</strong><br>La sección Flota ahora tiene pestañas: En ruta, Tractoras, Remolques y Tacógrafos. Ya no hay que bajar tanto para encontrar lo que buscas.</p>
-                            <p style="margin:0 0 14px"><strong style="color:#ff9d4d">📊 Panel de disponibilidad más claro</strong><br>Tractoras, cisternas, remolques Jet A-1, conductores y mecánicos disponibles, cada uno en su línea y fáciles de leer de un vistazo.</p>
-                            <p style="margin:0 0 14px"><strong style="color:#ff9d4d">⚔️ Alianza organizada por pestañas</strong><br>General, Gasolineras, Aeropuerto y Ranking y fondos, cada cosa en su sitio.</p>
-                            <p style="margin:0 0 14px"><strong style="color:#ff9d4d">📌 Informe de gastos fijos mensuales</strong><br>En Finanzas → Resumen verás el total de gastos fijos al mes (salarios, seguros, rentings, alquileres, oficinas, cuota del crédito...) para saber cuánto necesitas facturar.</p>
-                            <p style="margin:0 0 14px"><strong style="color:#ff9d4d">🔧 Mantenimiento más claro</strong><br>Los vehículos en mantenimiento se marcan en naranja con la hora exacta a la que termina la revisión.</p>
-                            <p style="margin:0 0 6px"><strong style="color:#ff9d4d">📬 Bandeja más limpia</strong><br>Eliminados los correos del clima y de pedidos aceptados para que no tapen los mensajes importantes.</p>
-                            <p style="margin:18px 0 0;color:#ff9d4d;font-size:14px;font-weight:600;text-align:center">¡Gracias por jugar a ECACH Logistic y por ayudarnos a mejorar este proyecto! 🚛💛</p>
-                        </div>
-                        <div style="padding:14px 22px;border-top:1px solid rgba(255,255,255,.08)">
-                            <button onclick="dismissNewsPopup()" style="width:100%;background:#ff7a1a;color:#1a0e05;border:none;padding:14px;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer">OK, entendido</button>
-                        </div>
-                    </div>
-                </div>`;
-                document.body.insertAdjacentHTML("beforeend", newsHtml);
-            } catch(e) {}
-        }
-        function dismissNewsPopup() {
-            const el = document.getElementById("newsPopupOverlay");
-            if (el) el.remove();
-            state.lastNewsSeen = CURRENT_NEWS_VERSION;
-            saveGame(true);
-        }
         // ============= I18N: Full English translation map =============
         const I18N_EN = {
             // Static section headings & subtitles
@@ -10135,8 +10105,8 @@
         }
         function showLanguageModal() {
             showModal("Idioma / Language", "Elige en qué idioma quieres jugar.", [
-                { label: "Español", className: "primary", callback: () => { setLanguage("es"); showLegalNoticeModal(); } },
-                { label: "English", className: "primary", callback: () => { setLanguage("en"); showLegalNoticeModal(); } }
+                { label: "Español", className: "primary", callback: () => { setLanguage("es"); closeModal(); showLegalNoticeModal(); } },
+                { label: "English", className: "primary", callback: () => { setLanguage("en"); closeModal(); showLegalNoticeModal(); } }
             ]);
         }
         function showLegalNoticeModal() {
