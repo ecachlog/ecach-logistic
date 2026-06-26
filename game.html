@@ -4768,7 +4768,6 @@
                 if ((trip.kmRound || 0) > 0) apiCall("POST", "/api/alliances/accumulate-km", { km: trip.kmRound }).catch(() => {});
                 // Mark the contract trip as done on the backend (pays 1000€ to alliance private fund)
                 // and pay the player — all happens when the truck reaches base.
-                const ac = trip.airportContract;
                 apiCall("POST", `/api/airport-contracts/${ac.contractId}/trip`, { tripN: ac.tripN, state: "done", company: state.companyName || state.warehouse?.companyName || "" })
                     .then(res => {
                         if (res && res.contractCompleted) notify("¡Contrato completado!", "Has entregado todos los viajes del contrato. Tu alianza ha recibido su recompensa.", "ok", true);
