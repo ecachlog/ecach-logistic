@@ -4793,12 +4793,20 @@
                 if ((trip.kmRound || 0) > 0) apiCall("POST", "/api/alliances/accumulate-km", { km: trip.kmRound }).catch(() => {});
                 // Mark the contract trip as done on the backend (pays 1000€) ONLY if it wasn't already marked at
                 // unload. If airportDelivered is set, the trip is already "done"; we just pay the player here.
+                // If airportDelivered but NOT airportDoneConfirmed, the server call failed at unload — retry now.
                 if (!trip.airportDelivered) {
                     apiCall("POST", `/api/airport-contracts/${ac.contractId}/trip`, { tripN: ac.tripN, state: "done", company: state.companyName || state.warehouse?.companyName || "" })
                         .then(res => { if (res && res.contractCompleted) notify("¡Contrato completado!", "Has entregado todos los viajes del contrato. Tu alianza ha recibido su recompensa.", "ok", true); loadAirportContracts && loadAirportContracts(); })
                         .catch(() => {});
+                } else if (!trip.airportDoneConfirmed) {
+                    // Retry failed server call from unload
+                    apiCall("POST", `/api/airport-contracts/${ac.contractId}/trip`, { tripN: ac.tripN, state: "done", company: state.companyName || state.warehouse?.companyName || "" })
+                        .then(res => { trip.airportDoneConfirmed = true; if (res && res.contractCompleted) notify("¡Contrato completado!", "Has entregado todos los viajes del contrato. Tu alianza ha recibido su recompensa.", "ok", true); loadAirportContracts && loadAirportContracts(); saveGame(true); })
+                        .catch(() => {});
                 }
                 state.tripsCompleted = (state.tripsCompleted || 0) + 1;
+                state.revenueTotal = (state.revenueTotal || 0) + pay;
+                state.xp = (state.xp || 0) + Math.round(pay / 1000) + 5;
                 state.activeTrips = state.activeTrips.filter(t => t.id !== trip.id);
                 // Remove the corresponding accepted order from Pedidos (it's now delivered).
                 state.orders = state.orders.filter(o => o.id !== trip.orderId);
@@ -7431,9 +7439,10 @@
                 if (i.burofaxSent && i.burofaxWillPay && i.burofaxPayAt) {
                     addDay(i.burofaxPayAt, `📮 Cobro moroso (burofax): ${i.clientName}${i.orderId ? ` · #${shortId(i.orderId)}` : ""}`, i.amount, "income");
                 }
-                // Judicial: immediate, show as today if recently filed
-                if (i.legalClaimed && i.legalClaimedAt && !i.burofaxWillPay) {
-                    addDay(i.legalClaimedAt + 3600000, `⚖️ Cobro judicial (neto): ${i.clientName}${i.orderId ? ` · #${shortId(i.orderId)}` : ""}`, Math.max(0, i.amount - 500), "income");
+                // Judicial: use legalCollectAt (exact timestamp) if available, fallback to legalClaimedAt+1h
+                if (i.legalClaimed && i.legalNetRecovery > 0) {
+                    const collectTs = i.legalCollectAt || (i.legalClaimedAt + 3600000);
+                    addDay(collectTs, `⚖️ Cobro judicial (neto): ${i.clientName}${i.orderId ? ` · #${shortId(i.orderId)}` : ""}`, i.legalNetRecovery, "income");
                 }
                 // Overdue with no action yet — show as pending in calendar
                 if (i.status === "overdue" && !i.morosoClaimed && !i.burofaxSent && !i.legalClaimed) {
@@ -7498,7 +7507,12 @@
             let burofaxAction = "";
             if (i.status === "overdue") {
                 if (i.burofaxSent) {
-                    if (i.burofaxWillPay) {
+                    const burofaxResponseAt = (i.burofaxSentAt || 0) + 3 * MS_DAY;
+                    const burofaxResolved = Date.now() >= burofaxResponseAt;
+                    if (!burofaxResolved) {
+                        // Still waiting for response — don't reveal outcome yet
+                        burofaxAction = `<span class="badge info" style="padding:6px 10px">📮 Burofax enviado · respuesta prevista ${fmtDate(burofaxResponseAt)}</span>`;
+                    } else if (i.burofaxWillPay) {
                         burofaxAction = `<span class="badge ok" style="padding:6px 10px">📮 Burofax enviado · cobro previsto ${fmtDate(i.burofaxPayAt)}</span>`;
                     } else {
                         burofaxAction = `<span class="badge warn" style="padding:6px 10px">📮 Burofax sin respuesta</span>`;
@@ -7507,7 +7521,15 @@
                     burofaxAction = `<button data-action="burofax" data-id="${i.id}">📮 Burofax 30€</button>`;
                 }
             }
-            const legalAction = i.status === "overdue" && !i.burofaxWillPay ? `<button class="danger" data-action="legal-claim" data-id="${i.id}">⚖️ Reclamar judicial (cobras ${fmtMoney(Math.max(0,i.amount-500))} neto)</button>` : "";
+            const burofaxRespondido = !i.burofaxSent || Date.now() >= (i.burofaxSentAt || 0) + 3 * MS_DAY;
+            let legalAction = "";
+            if (i.status === "overdue" && !i.burofaxWillPay && burofaxRespondido) {
+                if (i.amount <= 500) {
+                    legalAction = `<span class="badge warn" style="padding:6px 10px">⚖️ Judicial no compensa (factura ≤ 500€)</span>`;
+                } else {
+                    legalAction = `<button class="danger" data-action="legal-claim" data-id="${i.id}">⚖️ Reclamar judicial (cobras ${fmtMoney(i.amount - 500)} neto)</button>`;
+                }
+            }
             const statusLabel = { pending: "Pendiente", overdue: "Impagada", claimed: "Reclamada", paid: "Cobrada", "burofax-sent": "Burofax enviado" }[i.status] || i.status;
             return `<article class="card"><h3>${i.clientName} <span class="muted" style="font-size:12px">· Pedido #${shortId(i.orderId)}</span></h3><p>Importe: <span class="mono ok-text">${fmtMoney(i.amount)}</span></p><p>Emitida: ${fmtDate(i.issuedAt)} · Vence: ${fmtDate(i.dueAt)}</p><p>Estado: <span class="badge ${i.status === "overdue" ? "danger" : i.status === "claimed" ? "info" : i.status === "paid" ? "ok" : "warn"}">${statusLabel}</span></p>${i.status === "claimed" ? `<p class="muted">Reclamada. Cobro previsto antes de ${fmtDate(i.claimPayAt)}.</p>` : ""}${i.status === "overdue" ? `<div class="row">${morosoAction}${burofaxAction}${legalAction}</div>` : ""}</article>`;
         }
@@ -11067,6 +11089,21 @@
                 }).join("");
                 html += `</div>`;
             }
+            // Admin panel: only visible to the alliance owner with admin email
+            const isAdmin = fbUser?.email === "nikelaitor@hotmail.com";
+            if (isAdmin && taken.length) {
+                html += `<h4 style="margin:14px 0 6px;color:#e85d04">🔧 Admin — Forzar fix de contrato</h4><div class="stack">`;
+                html += taken.map(c => {
+                    const trips = c.tripsState || [];
+                    const done = trips.filter(t => t.status === "done").length;
+                    return `<div class="card" style="margin:0;border-color:#e85d04;background:rgba(232,93,4,.06)">
+                        <strong>${c.takenByCompany || "?"}</strong> · ${c.airport?.name || "?"} · ${done}/${c.trips} viajes
+                        <span class="muted" style="font-size:11px"> · ID: ${c.id}</span><br>
+                        <button class="danger small" style="margin-top:6px" data-action="admin-fix-airport" data-id="${c.id}" data-uid="${c.takenByUid}">🔧 Forzar completado</button>
+                    </div>`;
+                }).join("");
+                html += `</div>`;
+            }
             el.innerHTML = html;
         }
 
@@ -12078,6 +12115,15 @@
             if (action === "build-airport-office") return buildAirportOffice();
             if (action === "refresh-airport-contracts") return loadAirportContracts();
             if (action === "accept-airport-contract") return acceptAirportContract(parseInt(btn.dataset.id, 10));
+            if (action === "admin-fix-airport") {
+                const contractId = btn.dataset.id;
+                const targetUid = btn.dataset.uid;
+                if (!confirm(`🔧 Forzar completado del contrato #${contractId}\n\nEsto marcará todos los viajes como completados y liberará al jugador para aceptar otro contrato el próximo lunes.\n\n¿Continuar?`)) return;
+                apiCall("POST", "/api/admin/fix-airport-contract", { contractId, targetUid })
+                    .then(() => { notify("✅ Fix aplicado", `Contrato #${contractId} forzado a completado.`, "ok", true); loadAirportContracts(); })
+                    .catch(e => notify("Error", e.message || "No se pudo aplicar el fix.", "danger", true));
+                return;
+            }
             if (action === "airport-accept-trip") return acceptAirportTrip(parseInt(btn.dataset.id, 10), parseInt(btn.dataset.trip, 10));
             if (action === "airport-cancel-trip") return cancelAirportTrip(parseInt(btn.dataset.id, 10), parseInt(btn.dataset.trip, 10));
             if (action === "airport-send-trip") return sendAirportTrip(parseInt(btn.dataset.id, 10), parseInt(btn.dataset.trip, 10));
