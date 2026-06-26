@@ -4661,31 +4661,6 @@
                         }
                     }
                 }
-                // AIRPORT CONTRACT: mark the trip as DELIVERED when the truck has UNLOADED at the airport (i.e.
-                // it has covered the outbound legs: base→port + port→airport), without waiting for the return.
-                // The money is still paid when the truck reaches base (handled in completeTrip).
-                if (trip.airportContract && !trip.airportDelivered) {
-                    const legs = trip.legKm || [];
-                    const outbound = (legs[0] || 0) + (legs[1] || 0);
-                    const info = routeProgressInfo(trip, now);
-                    const doneKm = info && typeof info.completedKm === "number" ? info.completedKm : 0;
-                    // Delivered once we've covered the outbound distance (with a small margin), or we're clearly
-                    // in the return leg / past 55% of the whole round trip.
-                    const frac = trip.kmRound ? doneKm / trip.kmRound : 0;
-                    if ((outbound > 0 && doneKm >= outbound - 2) || frac >= 0.55) {
-                        trip.airportDelivered = true;
-                        trip.airportDoneConfirmed = false; // will be set true once server confirms
-                        const ac = trip.airportContract;
-                        const sendDone = () => apiCall("POST", `/api/airport-contracts/${ac.contractId}/trip`, { tripN: ac.tripN, state: "done", company: state.companyName || state.warehouse?.companyName || "" })
-                            .then(res => {
-                                trip.airportDoneConfirmed = true;
-                                if (res && res.contractCompleted) notify("¡Contrato completado!", "Has entregado todos los viajes del contrato. La alianza recibe su recompensa.", "ok", true);
-                                if (typeof loadAirportContracts === "function") loadAirportContracts();
-                            }).catch(() => { /* will retry from the safety net below */ });
-                        sendDone();
-                        notify("Viaje entregado", `Viaje ${ac.tripN} descargado en ${trip.destination ? "el aeropuerto" : "destino"}. El cobro llegará cuando el camión vuelva a base.`, "ok", true);
-                    }
-                }
                 // Safety: clear expired pauses (durationMs has elapsed since startTs)
                 if (trip.pauses && trip.pauses.length) {
                     trip.pauses = trip.pauses.filter(p => p.startTs + (p.durationMs || 0) > now - MS_HOUR);
@@ -4791,19 +4766,15 @@
                     `Has entregado el viaje ${ac.tripN} de tu contrato aeroportuario.\n\n📏 ${fmtNum(trip.kmRound || 0)} km · ${ac.pricePerKm.toFixed(2)} €/km\n💵 Cobro: ${fmtMoney(pay)}\n\nEl camión ha vuelto a tu base.`, "finance");
                 // 0,001 €/km to the alliance (same as any trip)
                 if ((trip.kmRound || 0) > 0) apiCall("POST", "/api/alliances/accumulate-km", { km: trip.kmRound }).catch(() => {});
-                // Mark the contract trip as done on the backend (pays 1000€) ONLY if it wasn't already marked at
-                // unload. If airportDelivered is set, the trip is already "done"; we just pay the player here.
-                // If airportDelivered but NOT airportDoneConfirmed, the server call failed at unload — retry now.
-                if (!trip.airportDelivered) {
-                    apiCall("POST", `/api/airport-contracts/${ac.contractId}/trip`, { tripN: ac.tripN, state: "done", company: state.companyName || state.warehouse?.companyName || "" })
-                        .then(res => { if (res && res.contractCompleted) notify("¡Contrato completado!", "Has entregado todos los viajes del contrato. Tu alianza ha recibido su recompensa.", "ok", true); loadAirportContracts && loadAirportContracts(); })
-                        .catch(() => {});
-                } else if (!trip.airportDoneConfirmed) {
-                    // Retry failed server call from unload
-                    apiCall("POST", `/api/airport-contracts/${ac.contractId}/trip`, { tripN: ac.tripN, state: "done", company: state.companyName || state.warehouse?.companyName || "" })
-                        .then(res => { trip.airportDoneConfirmed = true; if (res && res.contractCompleted) notify("¡Contrato completado!", "Has entregado todos los viajes del contrato. Tu alianza ha recibido su recompensa.", "ok", true); loadAirportContracts && loadAirportContracts(); saveGame(true); })
-                        .catch(() => {});
-                }
+                // Mark the contract trip as done on the backend (pays 1000€ to alliance private fund)
+                // and pay the player — all happens when the truck reaches base.
+                const ac = trip.airportContract;
+                apiCall("POST", `/api/airport-contracts/${ac.contractId}/trip`, { tripN: ac.tripN, state: "done", company: state.companyName || state.warehouse?.companyName || "" })
+                    .then(res => {
+                        if (res && res.contractCompleted) notify("¡Contrato completado!", "Has entregado todos los viajes del contrato. Tu alianza ha recibido su recompensa.", "ok", true);
+                        loadAirportContracts && loadAirportContracts();
+                    })
+                    .catch(() => {});
                 state.tripsCompleted = (state.tripsCompleted || 0) + 1;
                 state.revenueTotal = (state.revenueTotal || 0) + pay;
                 state.xp = (state.xp || 0) + Math.round(pay / 1000) + 5;
@@ -12840,18 +12811,6 @@
         setTimeout(_refreshAlliancePrize, 2000); // load 2s after game starts — before any trips tick
         setTimeout(showNewsPopupIfNeeded, 2500); // show news popup once per player
 
-        // Safety net: re-send "done" for airport trips that were delivered but never confirmed by the server
-        // (e.g. the API call failed because the server was restarting). Runs every 30s.
-        setInterval(() => {
-            (state.activeTrips || []).forEach(trip => {
-                if (trip.airportContract && trip.airportDelivered && trip.airportDoneConfirmed === false) {
-                    const ac = trip.airportContract;
-                    apiCall("POST", `/api/airport-contracts/${ac.contractId}/trip`, { tripN: ac.tripN, state: "done", company: state.companyName || state.warehouse?.companyName || "" })
-                        .then(() => { trip.airportDoneConfirmed = true; if (typeof loadAirportContracts === "function") loadAirportContracts(); })
-                        .catch(() => {});
-                }
-            });
-        }, 30000);
         setInterval(_refreshAlliancePrize, 5 * 60 * 1000); // refresh every 5 min
 
 
