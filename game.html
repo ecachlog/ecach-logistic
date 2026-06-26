@@ -4217,7 +4217,7 @@
             const routePoints = [originPoint, order.loadPoint, order.destination, originPoint];
             const routeCoords = createRoadRouteCoords(routePoints);
             const scheduleDurationMs = schedulePlan.schedule.reduce((sum, leg) => sum + (leg.durationMs || 0), 0);
-            const trip = { id: uid("trip"), orderId: order.id, truckId: truck.id, cisternId: cistern.id, driverIds: drivers.map(d => d.id), external: false, truckPlate: truck.plate, cisternPlate: cistern.plate, driverNames: drivers.map(d => `${d.first} ${d.last}`), baseId: truck.baseId || order.baseId || state.warehouse.id, startTs: now, durationMs: scheduleDurationMs, scheduleDurationMs, schedule: schedulePlan.schedule, routeKm: schedulePlan.routeKm || kmRound, legKm: [order.originToLoadKm || 0, order.loadedKm || order.kmOneWay || 0, order.returnKm || 0], effectiveSpeed: schedulePlan.effectiveSpeed, delayMs, pausedMs: 0, pauses: [], endTs: now + scheduleDurationMs + delayMs, kmOneWay: order.kmOneWay, kmRound, fuelLiters: fuelNeeded, fuelConsumed: 0, lastProgressKm: 0, speed: weather.speed, weather: weather.state, traffic: traffic.label, origin: originPoint, destination: { lat: order.destination.lat, lng: order.destination.lng }, loadPoint: order.loadPoint, routePoints, routeCoords, routeSource: "fallback", routeCountries: order.routeCountries, routeRules: order.routeRules, loadAddress: order.loadAddress, unloadAddress: order.unloadAddress, nextEventAt: now + rand(45, 120) * 60000, incidents: [], adrHold: false, cleaning, windowImpact, costs: tripCosts, documents: order.documents, cmr: order.cmr, airportContract: order.airportContract || null };
+            const trip = { id: uid("trip"), orderId: order.id, truckId: truck.id, cisternId: cistern.id, driverIds: drivers.map(d => d.id), external: false, truckPlate: truck.plate, cisternPlate: cistern.plate, driverNames: drivers.map(d => `${d.first} ${d.last}`), baseId: truck.baseId || order.baseId || state.warehouse.id, startTs: now, durationMs: scheduleDurationMs, scheduleDurationMs, schedule: schedulePlan.schedule, routeKm: schedulePlan.routeKm || kmRound, legKm: [order.originToLoadKm || 0, order.loadedKm || order.kmOneWay || 0, order.returnKm || 0], effectiveSpeed: schedulePlan.effectiveSpeed, delayMs, pausedMs: 0, pauses: [], endTs: now + scheduleDurationMs + delayMs, kmOneWay: order.kmOneWay, kmRound, fuelLiters: fuelNeeded, fuelConsumed: 0, lastProgressKm: 0, speed: weather.speed, weather: weather.state, traffic: traffic.label, _trafficSeed: Math.floor(Math.random() * 999983), origin: originPoint, destination: { lat: order.destination.lat, lng: order.destination.lng }, loadPoint: order.loadPoint, routePoints, routeCoords, routeSource: "fallback", routeCountries: order.routeCountries, routeRules: order.routeRules, loadAddress: order.loadAddress, unloadAddress: order.unloadAddress, nextEventAt: now + rand(45, 120) * 60000, incidents: [], adrHold: false, cleaning, windowImpact, costs: tripCosts, documents: order.documents, cmr: order.cmr, airportContract: order.airportContract || null };
             state.activeTrips.push(trip);
             order.status = "in_transit";
             order.dispatchedAt = now;
@@ -4490,12 +4490,12 @@
             // for a long time and the trip's ETA has already passed, do NOT recalculate weather/traffic —
             // otherwise reopening in the morning (rush-hour traffic) would push back a trip that should
             // have already arrived overnight. We let processTrips complete it at its original endTs.
-            if (!trip.external && now < (trip.endTs || 0) && (!trip.lastWeatherUpdateTs || now - trip.lastWeatherUpdateTs > MS_HOUR)) {
+            if (!trip.external && now < (trip.endTs || 0) && (!trip.lastWeatherUpdateTs || now - trip.lastWeatherUpdateTs > 30 * 60 * 1000)) {
                 try {
                     // Use weather of the destination region (refreshed by ensureWeather)
                     const destRegion = trip.destination?.region || (trip.destination ? getRegion(trip.destination.lat, trip.destination.lng) : null);
                     const currentWeather = (destRegion && state.weather[destRegion]) || state.weather.Centro || { state: "Despejado", speed: ADR_MAX_SPEED_KMH };
-                    const currentTraffic = getTrafficInfo(new Date(now));
+                    const currentTraffic = getTrafficInfo(new Date(now), trip._trafficSeed || 0);
                     const oldEffectiveSpeed = trip.effectiveSpeed || trip.speed || 60;
                     trip.weather = currentWeather.state;
                     trip.speed = currentWeather.speed;
@@ -4511,8 +4511,8 @@
                         const newRemainingDriveHours = remainingDriveKm / Math.max(1, newEffectiveSpeed);
                         let deltaMs = (newRemainingDriveHours - oldRemainingDriveHours) * MS_HOUR;
                         // Cap the per-update adjustment so a single recalculation can't swing the ETA wildly
-                        // (e.g. after the game was closed for hours). Max ±90 min per weather update.
-                        deltaMs = clamp(deltaMs, -90 * 60 * 1000, 90 * 60 * 1000);
+                        // (e.g. after the game was closed for hours). Max ±3h per weather update.
+                        deltaMs = clamp(deltaMs, -3 * 60 * 60 * 1000, 3 * 60 * 60 * 1000);
                         trip.endTs = Math.max(now + 5 * 60 * 1000, trip.endTs + deltaMs);
                     }
                     trip.effectiveSpeed = newEffectiveSpeed;
@@ -12410,29 +12410,70 @@
             return false;
         }
 
-        function getTrafficInfo(date) {
+        function getTrafficInfo(date, tripSeed = 0) {
             const h = date.getHours();
             const day = date.getDay(); // 0=Sun, 6=Sat
             const isWeekday = day >= 1 && day <= 5;
             const isWeekend = day === 0 || day === 6;
-            // Holidays and bridges: heavy traffic on main roads, especially midday and afternoon
+            // Seed combines date+hour+tripSeed so each trip gets different traffic
+            // but stays consistent within the same hour for that trip
+            const seed = (date.getFullYear() * 100000 + (date.getMonth()+1) * 10000 + date.getDate() * 100 + h) ^ (tripSeed * 2654435761 >>> 0);
+            const rng = () => { let x = Math.sin(seed * 9301 + 49297) * 233280; return x - Math.floor(x); };
+            const r = rng();
+
+            // Holidays and bridges
             if (isHolidayOrBridge(date)) {
-                if (h >= 10 && h < 21) return { label: "Tráfico denso (festivo/puente)", multiplier: 1.35 };
-                return { label: "Tráfico moderado (festivo)", multiplier: 1.10 };
+                if (h >= 10 && h < 21) {
+                    const m = 1.10 + r * 0.35; // 1.10 - 1.45
+                    const label = m > 1.30 ? "Tráfico denso (festivo/puente)" : "Tráfico moderado (festivo)";
+                    return { label, multiplier: Math.round(m * 100) / 100 };
+                }
+                return { label: "Tráfico moderado (festivo)", multiplier: 1.00 + r * 0.15 };
             }
-            // Friday afternoon/evening — getaway traffic
-            if (day === 5 && h >= 15 && h < 21) return { label: "Tráfico denso (salida fin de semana)", multiplier: 1.35 };
+            // Friday afternoon — sometimes heavy, sometimes not
+            if (day === 5 && h >= 15 && h < 21) {
+                if (r < 0.55) {
+                    return { label: "Tráfico denso (salida fin de semana)", multiplier: 1.20 + r * 0.25 };
+                } else if (r < 0.85) {
+                    return { label: "Tráfico moderado", multiplier: 1.05 + r * 0.15 };
+                }
+                return { label: "Tráfico normal", multiplier: 1.00 };
+            }
             // Sunday evening — return traffic
-            if (day === 0 && h >= 17 && h < 22) return { label: "Tráfico denso (retorno)", multiplier: 1.30 };
+            if (day === 0 && h >= 17 && h < 22) {
+                if (r < 0.50) {
+                    return { label: "Tráfico denso (retorno)", multiplier: 1.15 + r * 0.25 };
+                } else if (r < 0.80) {
+                    return { label: "Tráfico moderado", multiplier: 1.05 + r * 0.15 };
+                }
+                return { label: "Tráfico normal", multiplier: 1.00 };
+            }
             // Weekday rush hours
-            if (isWeekday && ((h >= 7 && h < 9) || (h >= 17 && h < 20))) return { label: "Hora punta", multiplier: 1.30 };
-            // Weekday midday moderate
-            if (isWeekday && h >= 13 && h < 15) return { label: "Tráfico moderado", multiplier: 1.12 };
-            // Night — free flowing
-            if (h >= 22 || h < 6) return { label: "Tráfico fluido (noche)", multiplier: .88 };
-            // Weekend daytime — lighter than weekday
-            if (isWeekend && h >= 9 && h < 21) return { label: "Tráfico ligero (finde)", multiplier: .95 };
-            return { label: "Tráfico normal", multiplier: 1 };
+            if (isWeekday && ((h >= 7 && h < 9) || (h >= 17 && h < 20))) {
+                if (r < 0.65) {
+                    return { label: "Hora punta", multiplier: 1.15 + r * 0.25 };
+                } else if (r < 0.90) {
+                    return { label: "Tráfico moderado", multiplier: 1.05 + r * 0.10 };
+                }
+                return { label: "Tráfico normal", multiplier: 1.00 };
+            }
+            // Weekday midday
+            if (isWeekday && h >= 13 && h < 15) {
+                if (r < 0.40) {
+                    return { label: "Tráfico moderado", multiplier: 1.05 + r * 0.12 };
+                }
+                return { label: "Tráfico normal", multiplier: 1.00 };
+            }
+            // Night — generally free but occasional truck convoy
+            if (h >= 22 || h < 6) {
+                return { label: "Tráfico fluido (noche)", multiplier: 0.82 + r * 0.10 };
+            }
+            // Weekend daytime — lighter but variable
+            if (isWeekend && h >= 9 && h < 21) {
+                return { label: "Tráfico ligero (finde)", multiplier: 0.90 + r * 0.15 };
+            }
+            // Normal daytime — some variation
+            return { label: r < 0.2 ? "Tráfico moderado" : "Tráfico normal", multiplier: 0.95 + r * 0.15 };
         }
         function getAdrRestriction(date) {
             const h = date.getHours();
