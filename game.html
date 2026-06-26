@@ -4871,7 +4871,7 @@
                         driver.restStartTs = now;
                         driver.status = "Descanso obligatorio";
                         driver.lastRestEndTs = now + restNeeded;
-                        state.futureEvents.push({ id: uid("evt"), type: "driver-rest-complete", driverId: driver.id, ts: driver.restUntilTs });
+                        state.futureEvents.push({ id: uid("evt"), type: "driver-rest-complete", driverId: driver.id, ts: driver.restUntilTs, createdAt: now });
                     } else {
                         // Driver hasn't reached 9h: available but rest clock starts. drivingToday is NOT reset yet.
                         // Tacho will only reset to 0 after 11h elapse (driver-tacho-reset event)
@@ -4880,7 +4880,7 @@
                         driver.restStartTs = now;
                         driver.restUntilTs = now + TACHO_DAILY_REST_HOURS * MS_HOUR;
                         // DO NOT reset continuousDriving here - it stays until 11h rest is complete
-                        state.futureEvents.push({ id: uid("evt"), type: "driver-tacho-reset", driverId: driver.id, ts: driver.restUntilTs });
+                        state.futureEvents.push({ id: uid("evt"), type: "driver-tacho-reset", driverId: driver.id, ts: driver.restUntilTs, createdAt: now });
                     }
                 });
             }
@@ -11500,11 +11500,19 @@
                     }
                 });
                 if (repaired) {
-                    // Drop scheduled driver rest/tacho events for drivers no longer on a trip
+                    // Drop scheduled driver rest/tacho events ONLY for drivers with no active trip
+                    // AND where the event was not recently created (within last 10 min).
+                    // Newly-arrived drivers (just completed a trip) have their tacho-reset event
+                    // added moments ago — we must NOT delete it or their tacho resets to 0 instantly.
                     const activeDriverIds = new Set();
                     (state.activeTrips || []).forEach(tr => (tr.driverIds || []).forEach(id => activeDriverIds.add(id)));
+                    const tenMinAgo = Date.now() - 10 * 60 * 1000;
                     state.futureEvents = (state.futureEvents || []).filter(e => {
-                        if ((e.type === "driver-rest-complete" || e.type === "driver-tacho-reset") && e.driverId && !activeDriverIds.has(e.driverId)) return false;
+                        if ((e.type === "driver-rest-complete" || e.type === "driver-tacho-reset") && e.driverId && !activeDriverIds.has(e.driverId)) {
+                            // Keep if created recently (driver just arrived at base)
+                            if (e.createdAt && e.createdAt > tenMinAgo) return true;
+                            return false;
+                        }
                         return true;
                     });
                     renderAll(); saveGame(true);
