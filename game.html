@@ -5971,10 +5971,12 @@
                 }
                 if (event.type === "legal-collect") {
                     const inv = state.invoicesIssued.find(i => i.id === event.invoiceId);
-                    if (inv && inv.legalNetRecovery > 0) {
-                        addMovement("income", `Cobro judicial neto — ${event.clientName || inv?.clientName || "cliente"}`, event.amount || inv.legalNetRecovery);
-                        addEmail("legal@ecachlogistic.eu", `Cobro judicial recibido — ${event.clientName || inv?.clientName}`, `Se han ingresado ${fmtMoney(event.amount || inv.legalNetRecovery)} en tu cuenta como cobro neto de la reclamación judicial (factura original: ${fmtMoney(inv?.amount || 0)} − 500€ honorarios).`, "legal");
-                        notify("⚖️ Cobro judicial recibido", `${fmtMoney(event.amount || inv.legalNetRecovery)} ingresados en tu cuenta.`, "ok", true);
+                    if (inv) {
+                        const cobro = inv.amount || event.amount || inv.legalNetRecovery || 0;
+                        addMovement("income", `Cobro judicial — ${event.clientName || inv?.clientName || "cliente"}`, cobro);
+                        addEmail("legal@ecachlogistic.eu", `Cobro judicial recibido — ${event.clientName || inv?.clientName}`, `Se han ingresado ${fmtMoney(cobro)} en tu cuenta correspondientes a la factura reclamada judicialmente.\n\n(Los 500€ de honorarios ya fueron descontados al iniciar la reclamación.)`, "legal");
+                        notify("⚖️ Cobro judicial recibido", `${fmtMoney(cobro)} ingresados en tu cuenta.`, "ok", true);
+                        inv.status = "paid"; inv.legalClaimed = false;
                     }
                     processed = true;
                 }
@@ -7273,6 +7275,10 @@
         function renderFinanceOverview(updateChart = true) {
             const pendingOut = state.invoicesIssued.filter(i => i.status !== "paid");
             const pendingIn = state.invoicesReceived.filter(i => i.status !== "paid");
+            const burofaxProgramado = pendingOut.filter(i => i.burofaxSent && i.burofaxWillPay && i.burofaxPayAt).reduce((s,i) => s + i.amount, 0);
+            const judicialProgramado = pendingOut.filter(i => i.legalClaimed && i.legalNetRecovery > 0).reduce((s,i) => s + i.amount, 0);
+            const cobrosPendientesNormales = pendingOut.filter(i=>i.status==="pending").reduce((s,i)=>s+i.amount,0);
+            const totalCobrosPendientes = cobrosPendientesNormales + burofaxProgramado + judicialProgramado;
             const movements = state.bank.movements.slice(0, 40).map(m => `<div class="log-item"><div class="row" style="justify-content:space-between"><strong>${m.label}</strong><span class="mono ${m.amount >= 0 ? "ok-text" : "danger-text"}">${m.amount >= 0 ? "+" : ""}${fmtMoney(m.amount)}</span></div><div class="row" style="justify-content:space-between"><p class="muted mono" style="margin:0">${fmtDate(m.ts)}</p>${typeof m.balanceAfter === "number" ? `<span class="muted mono" style="font-size:11px">Saldo: ${fmtMoney(m.balanceAfter)}</span>` : ""}</div></div>`).join("");
             const upgradeCost = nextLevelCost();
             const activeLoans = (state.bank.loans || []).filter(l => l.status === "active");
@@ -7325,7 +7331,7 @@
             ${mfs.loanPayment > 0 ? `<tr><td style="padding:5px 8px">🏦 Cuota crédito (capital ${fmtMoney(mfs.loanPrincipalMonthly)} + interés ${fmtMoney(mfs.loanInterestMonthly)})</td><td class="mono" style="padding:5px 8px;text-align:right">${fmtMoney(mfs.loanPayment)}</td></tr>` : ""}
             </tbody><tfoot><tr style="border-top:2px solid var(--line);font-weight:700"><td style="padding:8px">TOTAL mensual</td><td class="mono danger-text" style="padding:8px;text-align:right;font-size:15px">${fmtMoney(mfs.total)}</td></tr></tfoot></table></div></div>`;
             $("financeContent").innerHTML = `
-            <div class="metrics">${metricHtml("Saldo actual", fmtMoney(state.bank.balance), "🏦")}${metricHtml("Nivel empresa", state.level, "🏢")}${metricHtml("Cobros pendientes", fmtMoney(pendingOut.filter(i=>i.status==="pending").reduce((s,i)=>s+i.amount,0)), "🧾")}${pendingOut.some(i=>i.status==="overdue") ? metricHtml("Morosos pendientes", fmtMoney(pendingOut.filter(i=>i.status==="overdue"||i.status==="claimed").reduce((s,i)=>s+i.amount,0)), "⚠️") : ""}${metricHtml("Facturas pendientes pago", fmtMoney(pendingIn.reduce((s,i)=>s+i.amount,0)), "📥")}</div>
+            <div class="metrics">${metricHtml("Saldo actual", fmtMoney(state.bank.balance), "🏦")}${metricHtml("Nivel empresa", state.level, "🏢")}${metricHtml("Cobros pendientes", fmtMoney(totalCobrosPendientes), "🧾")}${pendingOut.some(i=>i.status==="overdue") ? metricHtml("Morosos pendientes", fmtMoney(pendingOut.filter(i=>i.status==="overdue"||i.status==="claimed").reduce((s,i)=>s+i.amount,0)), "⚠️") : ""}${metricHtml("Facturas pendientes pago", fmtMoney(pendingIn.reduce((s,i)=>s+i.amount,0)), "📥")}</div>
             <p class="muted" style="margin-bottom:12px">Todos los gastos recurrentes se cobran 1 mes después de su contratación. Consulta el <strong>Calendario financiero</strong> para ver qué se cobra cada día.</p>
             ${bankPanelHtml}
             ${fixedCostsCard}
@@ -7414,7 +7420,7 @@
                 // Judicial: use legalCollectAt (exact timestamp) if available, fallback to legalClaimedAt+1h
                 if (i.legalClaimed && i.legalNetRecovery > 0) {
                     const collectTs = i.legalCollectAt || (i.legalClaimedAt + 3600000);
-                    addDay(collectTs, `⚖️ Cobro judicial (neto): ${i.clientName}${i.orderId ? ` · #${shortId(i.orderId)}` : ""}`, i.legalNetRecovery, "income");
+                    addDay(collectTs, `⚖️ Cobro judicial: ${i.clientName}${i.orderId ? ` · #${shortId(i.orderId)}` : ""}`, i.amount, "income");
                 }
                 // Overdue with no action yet — show as pending in calendar
                 if (i.status === "overdue" && !i.morosoClaimed && !i.burofaxSent && !i.legalClaimed) {
