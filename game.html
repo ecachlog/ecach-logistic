@@ -604,7 +604,7 @@
 
             <section id="orders" class="view"><div class="panel"><div class="panel-title"><div><h2>📦 Pedidos</h2><p>Gestiona tus pedidos por estado.</p></div></div><div class="row" style="gap:8px;margin-bottom:12px;flex-wrap:wrap"><button id="tab-orders-available" class="primary small" data-action="orders-tab" data-tab="available">📨 Por aceptar</button><button id="tab-orders-accepted" class="ghost small" data-action="orders-tab" data-tab="accepted">✅ Aceptados</button><button id="tab-orders-active" class="ghost small" data-action="orders-tab" data-tab="active">🚛 En uso</button><button id="tab-orders-history" class="ghost small" data-action="orders-tab" data-tab="history">📋 Historial</button></div><div id="ordersContent" class="stack"></div></div></section>
             <section id="fleet" class="view"><div class="panel"><div class="panel-title"><div><h2>🚛 Flota ADR</h2><p>Cabezas tractoras, cisternas, desgaste, ITV y tacógrafo.</p></div></div><div id="fleetContent" class="stack"></div></div></section>
-            <section id="staff" class="view"><div class="panel"><div class="panel-title"><div><h2>👷 Personal</h2><p>Contratación, salarios, vacaciones, bajas y cobertura.</p></div></div><div class="row" style="gap:8px;margin-bottom:12px"><button id="tab-staff-cvs" class="primary small" data-action="staff-tab" data-tab="cvs">📄 Currículums</button><button id="tab-staff-active" class="ghost small" data-action="staff-tab" data-tab="active">✅ Activos</button><button id="tab-staff-leave" class="ghost small" data-action="staff-tab" data-tab="leave">🤒 Bajas</button><button id="tab-staff-vacation" class="ghost small" data-action="staff-tab" data-tab="vacation">🌴 Vacaciones</button><button id="tab-staff-retire" class="ghost small" data-action="staff-tab" data-tab="retire">👴 Jubilaciones</button><button id="tab-staff-raises" class="ghost small" data-action="staff-tab" data-tab="raises">📧 Ofertas pendientes</button></div><div id="staffContent" class="stack"></div></div></section>
+            <section id="staff" class="view"><div class="panel"><div class="panel-title"><div><h2>👷 Personal</h2><p>Contratación, salarios, vacaciones, bajas y cobertura.</p></div></div><div class="row" style="gap:8px;margin-bottom:12px"><button id="tab-staff-cvs" class="primary small" data-action="staff-tab" data-tab="cvs">📄 Currículums</button><button id="tab-staff-active" class="ghost small" data-action="staff-tab" data-tab="active">✅ Activos</button><button id="tab-staff-training" class="ghost small" data-action="staff-tab" data-tab="training">📚 En formación</button><button id="tab-staff-leave" class="ghost small" data-action="staff-tab" data-tab="leave">🤒 Bajas</button><button id="tab-staff-vacation" class="ghost small" data-action="staff-tab" data-tab="vacation">🌴 Vacaciones</button><button id="tab-staff-retire" class="ghost small" data-action="staff-tab" data-tab="retire">👴 Jubilaciones</button><button id="tab-staff-raises" class="ghost small" data-action="staff-tab" data-tab="raises">📧 Ofertas pendientes</button></div><div id="staffContent" class="stack"></div></div></section>
             <section id="warehouse" class="view"><div class="panel"><div class="panel-title"><div><h2>🏭 Nave industrial y depósito propio</h2><p>Plazas, combustible, repostaje automático y proveedores.</p></div></div><div id="warehouseContent" class="stack"></div></div></section>
             <section id="finance" class="view"><div class="panel"><div class="panel-title"><div><h2>💶 Finanzas</h2><p>Cuenta, facturas, gastos fijos y calendario financiero.</p></div></div><div class="row" style="gap:8px;margin-bottom:12px"><button id="tab-finance-overview" class="primary small" data-action="finance-tab" data-tab="overview">📊 Resumen</button><button id="tab-finance-calendar" class="ghost small" data-action="finance-tab" data-tab="calendar">📅 Calendario financiero</button><button id="tab-finance-invoices" class="ghost small" data-action="finance-tab" data-tab="invoices">🧾 Facturas</button></div><div id="financeContent" class="stack"></div></div></section>
             <section id="clients" class="view"><div class="panel"><div class="panel-title"><div><h2>🤝 Clientes diarios</h2><p>Clientes con pedidos abiertos y condiciones por km.</p></div></div><div id="clientsContent" class="stack"></div></div></section>
@@ -4845,16 +4845,17 @@
                             const prevExp = driver.experience || 0;
                             driver.experience = clamp(prevExp + expGain, 0, 100);
                             if (driver.experience >= 100) addEmail("rrhh@ecachlogistic.eu", `${driver.first} ${driver.last} al máximo`, `${driver.first} ha alcanzado 100% de experiencia.`, "staff", driver.id);
-                            // Hidden feature: if driver crosses 90% threshold and has not yet asked for raise, trigger request
-                            if (prevExp < 90 && driver.experience >= 90 && !driver.raiseRequested) {
+                            // Raise request: after 2 months working, random chance per tick so not all ask at once
+                            const twoMonthsMs = 60 * 24 * 3600 * 1000;
+                            if (!driver.raiseRequested && (Date.now() - (driver.hiredAt || 0)) >= twoMonthsMs && Math.random() < 0.0005) {
                                 driver.raiseRequested = true;
                                 driver.raiseDeadline = Date.now() + 15 * MS_DAY;
                                 driver.raiseAmount = 500;
                                 addEmail(`${driver.first.toLowerCase()}.${driver.last.toLowerCase()}@ecachlogistic.eu`,
                                     `Solicitud de aumento de sueldo · ${driver.first} ${driver.last}`,
-                                    `Estimado responsable,\n\nEscribo este correo para solicitar un aumento en mi salario mensual. Llevo tiempo trabajando en la empresa y considero que mi experiencia y conocimiento de los protocolos ADR merecen una mejora salarial de 500€/mes sobre mi sueldo actual de ${fmtMoney(driver.salary)}.\n\nEsperaré 15 días vuestra respuesta. Pasado ese plazo entenderé que la respuesta es negativa y buscaré nuevas oportunidades.\n\nUn saludo,\n${driver.first} ${driver.last}`,
+                                    `Estimado responsable,\n\nLlevo más de dos meses trabajando en la empresa y considero que mi dedicación merece una mejora salarial de 500€/mes sobre mi sueldo actual de ${fmtMoney(driver.salary)}.\n\nEsperaré 15 días vuestra respuesta. Pasado ese plazo entenderé que la respuesta es negativa y buscaré nuevas oportunidades.\n\nUn saludo,\n${driver.first} ${driver.last}`,
                                     "staff", driver.id);
-                                notify("📧 Nueva solicitud de aumento", `${driver.first} ${driver.last} ha pedido +500€/mes de aumento. Tienes 15 días para responder.`, "info", true);
+                                notify("📧 Nueva solicitud de aumento", `${driver.first} ${driver.last} pide +500€/mes. Tienes 15 días para responder.`, "info", true);
                             }
                         }
                     }
@@ -5919,17 +5920,30 @@
                 if (event.type === "adr-expiring") {
                     const worker = state.workers.find(w => w.id === event.workerId);
                     if (worker && worker.adr) {
-                        addEmail("formacion@ecachlogistic.eu", `⚠️ ADR a punto de caducar: ${worker.first} ${worker.last}`, `El carné ADR de ${worker.first} ${worker.last} (Conductor) caduca el ${fmtDate(event.adrExpiry)}.\n\nQueda aproximadamente 1 mes. A partir de ahora YA puedes apuntarlo a la formación para renovarlo a tiempo:\n\n👉 Ve al apartado de FORMACIONES (o al detalle del chófer) y matricúlalo en el curso de renovación ADR.\n· Coste: 500 €\n· Duración: 5 días\n· Es repetible hasta que apruebe\n\n⚠️ IMPORTANTE: si el ADR caduca sin renovar, el conductor NO podrá ser despachado a ningún viaje hasta que vuelva a tener el ADR vigente. Fórmalo con tiempo para que no se te quede parado.`, "staff", worker.id);
-                        notify("ADR caduca en ~1 mes", `${worker.first} ${worker.last}: ya puedes apuntarlo a la formación ADR para renovarlo antes del ${fmtDate(event.adrExpiry)}.`, "warn", true);
+                        // Auto-enroll in ADR renewal — charge 500€ and block the driver
+                        if (state.bank.balance >= COURSE_ADR_COST) {
+                            state.bank.balance -= COURSE_ADR_COST;
+                            addMovement("expense", `Renovación ADR automática: ${worker.first} ${worker.last}`, -COURSE_ADR_COST);
+                            worker.status = "Formación";
+                            worker.currentCourse = { type: "adr", startTs: Date.now(), endTs: Date.now() + COURSE_ADR_DAYS * 24 * 3600 * 1000, attempts: 1 };
+                            state.futureEvents.push({ id: uid("evt"), type: "course-end", workerId: worker.id, courseType: "adr", ts: worker.currentCourse.endTs });
+                            addEmail("formacion@ecachlogistic.eu", `Renovación ADR automática: ${worker.first} ${worker.last}`,
+                                `El carné ADR de ${worker.first} ${worker.last} caduca el ${fmtDate(event.adrExpiry)}.\n\nSe ha iniciado la renovación automática:\n· Coste: ${fmtMoney(COURSE_ADR_COST)} (ya descontado de tu saldo)\n· Duración: ${COURSE_ADR_DAYS} días\n· El conductor queda en FORMACIÓN hasta que apruebe\n\nSi no aprueba a la primera, deberás repetir el curso (500€ adicionales).`, "staff", worker.id);
+                            notify("🔄 Renovación ADR automática", `${worker.first} ${worker.last} entra en formación ADR. Coste: ${fmtMoney(COURSE_ADR_COST)}. No disponible ${COURSE_ADR_DAYS} días.`, "warn", true);
+                        } else {
+                            addEmail("formacion@ecachlogistic.eu", `⚠️ ADR caduca pronto — saldo insuficiente: ${worker.first} ${worker.last}`,
+                                `El carné ADR de ${worker.first} ${worker.last} caduca el ${fmtDate(event.adrExpiry)}.\n\n⛔ No tienes saldo suficiente para la renovación automática (500€).\n\nIngresa fondos y apúntalo manualmente al curso desde su ficha antes de que caduque.`, "staff", worker.id);
+                            notify("⚠️ ADR caduca pronto — saldo insuficiente", `${worker.first} ${worker.last}: ADR caduca el ${fmtDate(event.adrExpiry)}. Necesitas 500€.`, "danger", true);
+                        }
                     }
                 }
                 if (event.type === "adr-expired") {
                     const worker = state.workers.find(w => w.id === event.workerId);
                     if (worker && worker.adr) {
-                        // ADR caducado y no renovado a tiempo: pierde el ADR. Sin coste de despido si lo despides ahora.
+                        // ADR caducado sin renovar (saldo insuficiente en su momento)
                         worker.adr = false;
-                        addEmail("formacion@ecachlogistic.eu", `ADR caducado: ${worker.first} ${worker.last}`, `El ADR de ${worker.first} ${worker.last} ha caducado y no fue renovado. Sin ADR el chófer no puede conducir cisternas ADR. Para que vuelva a trabajar, inscríbelo en el curso ADR (500€, 5 días) desde su tarjeta. Si lo despides pagarás sueldo del mes + indemnización por días contratados.`, "staff", worker.id);
-                        notify("ADR caducado", `${worker.first} ${worker.last} pierde ADR. Renuévalo (500€) o despídelo (con coste).`, "danger", true);
+                        addEmail("formacion@ecachlogistic.eu", `ADR caducado: ${worker.first} ${worker.last}`, `El ADR de ${worker.first} ${worker.last} ha caducado sin renovar (saldo insuficiente). Sin ADR el chófer no puede conducir cisternas ADR.\n\nApúntalo al curso ADR (500€, 5 días) desde su ficha para que vuelva a trabajar.\n\nSi lo despides pagarás sueldo del mes + indemnización por días contratados.`, "staff", worker.id);
+                        notify("ADR caducado", `${worker.first} ${worker.last} pierde ADR. Renuévalo (500€) o despídelo (con coste normal).`, "danger", true);
                     }
                 }
                 if (event.type === "course-result") {
@@ -7037,7 +7051,7 @@
             activeWorkers.forEach(w => { if (activeCounts[w.role] !== undefined) activeCounts[w.role]++; });
             const needs = minimumStaffNeeds();
 
-            ["cvs","active","leave","vacation","retire","raises"].forEach(t => {
+            ["cvs","active","training","leave","vacation","retire","raises"].forEach(t => {
                 const btn = document.getElementById("tab-staff-" + t);
                 if (btn) btn.className = t === _staffTab ? "primary small" : "ghost small";
             });
@@ -7061,6 +7075,31 @@
             } else if (_staffTab === "active") {
                 const cards = activeWorkers.map(workerCard).join("");
                 content += `<div class="cards">${cards || `<p class="muted">No hay trabajadores activos.</p>`}</div>`;
+            } else if (_staffTab === "training") {
+                const trainingWorkers = state.workers.filter(w => w.status === "Formación" && w.currentCourse);
+                if (!trainingWorkers.length) {
+                    content = `<p class="muted">No hay trabajadores en formación ahora mismo.</p>`;
+                } else {
+                    content = trainingWorkers.map(w => {
+                        const c = w.currentCourse;
+                        const endTs = c.endTs || 0;
+                        const remaining = Math.max(0, endTs - Date.now());
+                        const remainHours = Math.floor(remaining / 3600000);
+                        const remainDays = Math.floor(remainHours / 24);
+                        const courseNames = { adr: "Renovación ADR", duo: "Carné Duo Trailer", jetA1: "Carné Jet A-1", exp: "Perfeccionamiento profesional" };
+                        const courseName = courseNames[c.type] || c.type;
+                        return `<article class="card" style="border-color:#39a9ff;background:rgba(57,169,255,.06)">
+                            <div class="row" style="justify-content:space-between">
+                                <h3>📚 ${w.first} ${w.last}</h3>
+                                <span class="badge info">${w.role}</span>
+                            </div>
+                            <p>Curso: <strong>${courseName}</strong></p>
+                            <p>Intento: <strong>${c.attempts || 1}</strong></p>
+                            <p>Finaliza: <strong>${fmtDate(endTs)}</strong> · ${remainDays > 0 ? `${remainDays}d ${remainHours % 24}h` : `${remainHours}h`} restantes</p>
+                            <p class="muted" style="font-size:12px">El trabajador no está disponible para viajes durante la formación.</p>
+                        </article>`;
+                    }).join("");
+                }
             } else if (_staffTab === "leave") {
                 const cards = leaveWorkers.map(workerCard).join("");
                 content += leaveWorkers.length ? `<div class="cards">${cards}</div>` : `<p class="muted">Ningún trabajador está de baja médica.</p>`;
@@ -7501,15 +7540,18 @@
             }
             const burofaxRespondido = !i.burofaxSent || Date.now() >= (i.burofaxSentAt || 0) + 3 * MS_DAY;
             let legalAction = "";
+            let cancelAction = "";
             if (i.status === "overdue" && !i.burofaxWillPay && burofaxRespondido) {
-                if (i.amount <= 500) {
-                    legalAction = `<span class="badge warn" style="padding:6px 10px">⚖️ Judicial no compensa (factura ≤ 500€)</span>`;
+                const neto = i.amount - 500;
+                if (neto < 0) {
+                    legalAction = `<button class="danger" data-action="legal-claim" data-id="${i.id}" style="opacity:0.8">⚖️ Reclamar judicial (perderás ${fmtMoney(Math.abs(neto))} neto)</button>`;
                 } else {
-                    legalAction = `<button class="danger" data-action="legal-claim" data-id="${i.id}">⚖️ Reclamar judicial (cobras ${fmtMoney(i.amount - 500)} neto)</button>`;
+                    legalAction = `<button class="danger" data-action="legal-claim" data-id="${i.id}">⚖️ Reclamar judicial (cobras ${fmtMoney(neto)} neto)</button>`;
                 }
+                cancelAction = `<button class="ghost" data-action="cancel-invoice" data-id="${i.id}" style="border-color:#888;color:#888">🗑️ Cancelar factura (perderás ${fmtMoney(i.amount)})</button>`;
             }
             const statusLabel = { pending: "Pendiente", overdue: "Impagada", claimed: "Reclamada", paid: "Cobrada", "burofax-sent": "Burofax enviado" }[i.status] || i.status;
-            return `<article class="card"><h3>${i.clientName} <span class="muted" style="font-size:12px">· Pedido #${shortId(i.orderId)}</span></h3><p>Importe: <span class="mono ok-text">${fmtMoney(i.amount)}</span></p><p>Emitida: ${fmtDate(i.issuedAt)} · Vence: ${fmtDate(i.dueAt)}</p><p>Estado: <span class="badge ${i.status === "overdue" ? "danger" : i.status === "claimed" ? "info" : i.status === "paid" ? "ok" : "warn"}">${statusLabel}</span></p>${i.status === "claimed" ? `<p class="muted">Reclamada. Cobro previsto antes de ${fmtDate(i.claimPayAt)}.</p>` : ""}${i.status === "overdue" ? `<div class="row">${morosoAction}${burofaxAction}${legalAction}</div>` : ""}</article>`;
+            return `<article class="card"><h3>${i.clientName} <span class="muted" style="font-size:12px">· Pedido #${shortId(i.orderId)}</span></h3><p>Importe: <span class="mono ok-text">${fmtMoney(i.amount)}</span></p><p>Emitida: ${fmtDate(i.issuedAt)} · Vence: ${fmtDate(i.dueAt)}</p><p>Estado: <span class="badge ${i.status === "overdue" ? "danger" : i.status === "claimed" ? "info" : i.status === "paid" ? "ok" : "warn"}">${statusLabel}</span></p>${i.status === "claimed" ? `<p class="muted">Reclamada. Cobro previsto antes de ${fmtDate(i.claimPayAt)}.</p>` : ""}${i.status === "overdue" ? `<div class="row">${morosoAction}${burofaxAction}${legalAction}${cancelAction}</div>` : ""}</article>`;
         }
         function invoiceInCard(i) { return `<article class="card"><label class="row"><input class="invoice-check" type="checkbox" value="${i.id}" style="width:auto"> <strong>${i.provider}</strong></label><p>${i.category}</p><p>${i.description || ""}</p><p>Importe: <span class="mono danger-text">${fmtMoney(i.amount)}</span> · Vence: ${fmtDate(i.dueAt)}</p><p class="muted">Cargo automatico: ${fmtDate(i.autoPayAt || i.dueAt)}</p><button data-action="pay-invoice" data-id="${i.id}">Pagar ahora</button></article>`; }
         function updateFinanceChart() {
@@ -10330,8 +10372,7 @@
 
         function employmentDays(worker) { return Math.max(1, Math.ceil((Date.now() - (worker.hiredAt || Date.now())) / MS_DAY)); }
         function dismissalCompensation(worker) {
-            // ADR caducado en un conductor: despido sin coste
-            if (worker.role === "Conductor" && worker.adrExpiry && Date.now() > worker.adrExpiry && !worker.adr) return 0;
+            // ADR caducado: ya no es gratuito — el despido tiene coste normal
             return employmentDays(worker) * DISMISSAL_COMPENSATION_PER_DAY;
         }
 
@@ -10414,17 +10455,7 @@
                 const prevExp = worker.experience || 0;
                 worker.experience = Math.min(100, prevExp + COURSE_EXP_GAIN);
                 worker.expCourseDone = true;
-                // Hidden raise trigger if crossed 90%
-                if (prevExp < 90 && worker.experience >= 90 && !worker.raiseRequested) {
-                    worker.raiseRequested = true;
-                    worker.raiseDeadline = Date.now() + 15 * MS_DAY;
-                    worker.raiseAmount = 500;
-                    addEmail(`${worker.first.toLowerCase()}.${worker.last.toLowerCase()}@ecachlogistic.eu`,
-                        `Solicitud de aumento de sueldo · ${worker.first} ${worker.last}`,
-                        `Estimado responsable,\n\nEscribo este correo para solicitar un aumento en mi salario mensual. Llevo tiempo trabajando en la empresa y considero que mi experiencia y conocimiento de los protocolos ADR merecen una mejora salarial de 500€/mes sobre mi sueldo actual de ${fmtMoney(worker.salary)}.\n\nEsperaré 15 días vuestra respuesta. Pasado ese plazo entenderé que la respuesta es negativa y buscaré nuevas oportunidades.\n\nUn saludo,\n${worker.first} ${worker.last}`,
-                        "staff", worker.id);
-                    notify("📧 Nueva solicitud de aumento", `${worker.first} ${worker.last} ha pedido +500€/mes de aumento. Tienes 15 días para responder.`, "info", true);
-                }
+                // Hidden raise trigger removed — raises now trigger by seniority (2 months)
                 addEmail("formacion@ecachlogistic.eu", `Curso perfeccionamiento completado · ${worker.first} ${worker.last}`, `${worker.first} ${worker.last} completó el curso de perfeccionamiento profesional. Experiencia ahora al ${worker.experience.toFixed(0)}%.`, "staff", worker.id);
                 notify("Curso completado", `${worker.first} ${worker.last}: experiencia al ${worker.experience.toFixed(0)}%.`, "ok", true);
                 closeModal();
@@ -12393,6 +12424,16 @@
                 state.futureEvents.push({ type: "legal-collect", invoiceId: invoice.id, ts: collectAt, amount: netRecovery, clientName: invoice.clientName });
                 addEmail("legal@ecachlogistic.eu", `Reclamación judicial iniciada — ${invoice.clientName}`, `Hemos presentado la reclamación contra ${invoice.clientName} por ${fmtMoney(invoice.amount)}.\n\nHonorarios descontados: 500€\nCobro neto previsto: ${fmtMoney(netRecovery)}\nPlazo estimado: 24-48 horas.`, "legal", invoice.id);
                 notify("⚖️ Reclamación judicial iniciada", `Honorarios: -500€. Cobro neto previsto: ${fmtMoney(netRecovery)} en 24-48h.`, "ok", true);
+                renderAll(); saveGame(true);
+            }
+            if (action === "cancel-invoice") {
+                const invoice = state.invoicesIssued.find(i => i.id === id);
+                if (!invoice || invoice.status !== "overdue") return;
+                if (!confirm(`🗑️ Cancelar factura\n\n⚠️ Vas a cancelar la factura de ${invoice.clientName} por ${fmtMoney(invoice.amount)}.\n\nPerderás este cobro definitivamente y no podrás reclamarlo después.\n\n¿Seguro que quieres cancelarla?`)) return;
+                invoice.status = "cancelled";
+                addMovement("expense", `Factura cancelada — ${invoice.clientName} · #${shortId(invoice.orderId)}`, -invoice.amount);
+                addEmail("legal@ecachlogistic.eu", `Factura cancelada — ${invoice.clientName}`, `Has cancelado la factura de ${fmtMoney(invoice.amount)} de ${invoice.clientName}. El importe se ha registrado como pérdida en tu contabilidad.`, "legal", invoice.id);
+                notify("🗑️ Factura cancelada", `Has cancelado ${fmtMoney(invoice.amount)} de ${invoice.clientName}. Importe registrado como pérdida.`, "warn", true);
                 renderAll(); saveGame(true);
             }
         }
