@@ -497,7 +497,7 @@
                     <div class="mhud" id="mobileAdrHud">ADR OK</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v3.2</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v3.3</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -525,7 +525,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v3.2</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v3.3</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -4149,6 +4149,7 @@
             const restriction = getAdrRestriction(new Date());
             const adrFineCovered = activeBuff("noFinesUntil") || (typeof allianceNoFinesActive === "function" && allianceNoFinesActive());
             if (restriction.restricted && !adrFineCovered) {
+                if (!_alliancePrizeLoaded) return; // wait for alliance prize to load before fining
                 if (!confirm(`${restriction.reason}\nProhibicion desde ${fmtDate(restriction.startTs)} hasta ${fmtDate(restriction.endTs)}.\nPuedes salir igualmente, pero te arriesgas a una multa ADR de 1.000 euros (15% de probabilidad). ¿Salir?`)) return;
             }
             const truck = state.fleet.find(t => t.id === valueOf(`truck-${orderId}`));
@@ -6569,14 +6570,15 @@
             $("bankHud").textContent = fmtMoney(state.bank.balance);
             $("levelHud").textContent = state.level;
             const adr = getAdrRestriction(date);
+            const adrProtected = adr.restricted && (activeBuff("noFinesUntil") || allianceNoFinesActive());
             const adrHud = $("adrHud");
-            adrHud.textContent = adr.restricted ? "BLOQUEO" : "OK";
-            adrHud.className = `value ${adr.restricted ? "danger-text" : "ok-text"}`;
+            adrHud.textContent = adr.restricted ? (adrProtected ? "PROTEGIDO" : "BLOQUEO") : "OK";
+            adrHud.className = `value ${adr.restricted ? (adrProtected ? "ok-text" : "danger-text") : "ok-text"}`;
             // Mobile mini-hud
             const mb = $("mobileBankHud");
             const ma = $("mobileAdrHud");
             if (mb) { mb.textContent = fmtMoney(state.bank.balance); mb.className = `mhud ${state.bank.balance < 0 ? "danger-text" : "ok-text"}`; }
-            if (ma) { ma.textContent = adr.restricted ? "ADR ⛔" : "ADR ✅"; ma.className = `mhud ${adr.restricted ? "danger-text" : "ok-text"}`; }
+            if (ma) { ma.textContent = adr.restricted ? (adrProtected ? "ADR ✅" : "ADR ⛔") : "ADR ✅"; ma.className = `mhud ${adr.restricted && !adrProtected ? "danger-text" : "ok-text"}`; }
         }
 
         function renderAll() {
@@ -12915,18 +12917,19 @@
         setInterval(tick, 1000);
 
         // Load alliance prize on startup so antimultas works without opening Alianzas
+        let _alliancePrizeLoaded = false;
         async function _refreshAlliancePrize() {
             try {
-                // Don't check _inAlliance here — it may not be set yet on startup.
-                // The endpoint returns null gracefully if the player has no alliance.
                 const data = await apiCall("GET", "/api/alliances/mine");
                 if (data?.alliance?.activePrizeId && data.alliance.activePrizeExpires > Date.now()) {
                     _activeAlliancePrize = { id: data.alliance.activePrizeId, expiresAt: data.alliance.activePrizeExpires };
-                    _inAlliance = true; // also update the flag
+                    _inAlliance = true;
                 } else {
                     _activeAlliancePrize = null;
                 }
-            } catch(e) {}
+            } catch(e) {} finally {
+                _alliancePrizeLoaded = true;
+            }
         }
         setTimeout(_refreshAlliancePrize, 2000); // load 2s after game starts — before any trips tick
         setTimeout(showNewsPopupIfNeeded, 2500); // show news popup once per player
