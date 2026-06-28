@@ -497,7 +497,7 @@
                     <div class="mhud" id="mobileAdrHud">ADR OK</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v3.3</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v3.4</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -525,7 +525,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v3.3</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v3.4</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -892,13 +892,14 @@
             // permanent clients, pending invoices, futureEvents, settings, flags, level, etc.
             // Removes: completed/expired orders, old movements, old emails, old notifications, paid invoices.
             try {
-                // Keep ONLY active orders (email/accepted/in_transit) + last 20 completed/expired (for ranking stats)
+                // Keep ONLY active orders (email/accepted/in_transit) + today's completed + last 20 completed/expired (for ranking stats)
                 if (Array.isArray(state.orders)) {
                     const active = state.orders.filter(o => ["email", "accepted", "in_transit"].includes(o.status));
-                    const completed = state.orders.filter(o => !["email", "accepted", "in_transit"].includes(o.status))
+                    const todayCompleted = state.orders.filter(o => !["email", "accepted", "in_transit"].includes(o.status) && o.dailyDay === state.dailyOrderDay);
+                    const olderCompleted = state.orders.filter(o => !["email", "accepted", "in_transit"].includes(o.status) && o.dailyDay !== state.dailyOrderDay)
                         .sort((a, b) => (b.completedAt || b.acceptedAt || b.createdAt || 0) - (a.completedAt || a.acceptedAt || a.createdAt || 0))
                         .slice(0, 20);
-                    state.orders = [...active, ...completed];
+                    state.orders = [...active, ...todayCompleted, ...olderCompleted];
                 }
                 // Movements: keep only last 30
                 if (state.bank && Array.isArray(state.bank.movements)) {
@@ -2064,6 +2065,11 @@
             const base = blankState();
             state = Object.assign(base, state || {});
             state.bank = Object.assign(base.bank, state.bank || {});
+            // Restore cached alliance prize immediately so ADR fines are blocked from the first tick
+            if (state._cachedAlliancePrize && state._cachedAlliancePrize.expiresAt > Date.now()) {
+                _activeAlliancePrize = state._cachedAlliancePrize;
+                _alliancePrizeLoaded = true;
+            }
             if (!Array.isArray(state.bank.loans)) state.bank.loans = [];
             state.settings = Object.assign(base.settings, state.settings || {});
             state.immediateSlots = Object.assign(base.immediateSlots, state.immediateSlots || {});
@@ -6658,7 +6664,10 @@
                 const now = Date.now();
                 const restriction = getAdrRestriction(new Date(now));
                 const upcoming = getAdrRestriction(new Date(now + 6 * MS_HOUR));
-                if (restriction.restricted) {
+                const adrProtectedNow = activeBuff("noFinesUntil") || allianceNoFinesActive();
+                if (adrProtectedNow && restriction.restricted) {
+                    adrWarning = `<p class="badge ok">✅ Antimultas ADR activo — puedes circular libremente durante la restricción.</p>`;
+                } else if (restriction.restricted) {
                     adrWarning = `<p class="badge danger">⛔ RESTRICCIÓN ADR ACTIVA — ${restriction.reason} hasta ${fmtDate(restriction.endTs)}. Si despachas ahora, el camión puede ser multado (${fmtMoney(1000)}, 15% probabilidad).</p>`;
                 } else if (upcoming.restricted) {
                     adrWarning = `<p class="badge warn">⚠️ Restricción ADR en menos de 6h — ${upcoming.reason} desde ${fmtDate(upcoming.startTs)}. Planifica la salida con tiempo.</p>`;
@@ -12924,8 +12933,11 @@
                 if (data?.alliance?.activePrizeId && data.alliance.activePrizeExpires > Date.now()) {
                     _activeAlliancePrize = { id: data.alliance.activePrizeId, expiresAt: data.alliance.activePrizeExpires };
                     _inAlliance = true;
+                    // Cache in state so it's available immediately on next load
+                    state._cachedAlliancePrize = { id: data.alliance.activePrizeId, expiresAt: data.alliance.activePrizeExpires };
                 } else {
                     _activeAlliancePrize = null;
+                    state._cachedAlliancePrize = null;
                 }
             } catch(e) {} finally {
                 _alliancePrizeLoaded = true;
