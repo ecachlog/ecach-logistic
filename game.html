@@ -493,7 +493,7 @@
             <div class="mobile-topbar">
                 <div class="mobile-brand">⛽ ECACH LOGISTIC</div>
                 <div class="mobile-hud-mini">
-                    <div class="mhud ok-text" id="mobileBankHud">50.000 €</div>
+                    <div class="mhud" id="mobileBankHud">50.000 €</div>
                     <div class="mhud" id="mobileAdrHud">ADR OK</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
@@ -558,7 +558,7 @@
                 <div class="hud">
                     <div class="hud-card"><span class="label">Hora real</span><div class="value" id="clock">--:--:--</div></div>
                     <div class="hud-card"><span class="label">Fecha</span><div class="value" id="dateLabel">--/--/----</div></div>
-                    <div class="hud-card"><span class="label">Cuenta bancaria</span><div class="value ok-text" id="bankHud">50.000 €</div></div>
+                    <div class="hud-card"><span class="label">Cuenta bancaria</span><div class="value" id="bankHud">50.000 €</div></div>
                     <div class="hud-card"><span class="label">Nivel empresa</span><div class="value orange" id="levelHud">1</div></div>
                     <div class="hud-card"><span class="label">Restricción ADR</span><div class="value" id="adrHud">OK</div></div>
                 </div>
@@ -6573,7 +6573,8 @@
             const date = new Date(now);
             $("clock").textContent = date.toLocaleTimeString("es-ES");
             $("dateLabel").textContent = date.toLocaleDateString("es-ES", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
-            $("bankHud").textContent = fmtMoney(state.bank.balance);
+            const bankHudEl = $("bankHud");
+            if (bankHudEl) { bankHudEl.textContent = fmtMoney(state.bank.balance); bankHudEl.className = `value ${state.bank.balance < 0 ? "danger-text" : "ok-text"}`; }
             $("levelHud").textContent = state.level;
             const adr = getAdrRestriction(date);
             const adrProtected = adr.restricted && (activeBuff("noFinesUntil") || allianceNoFinesActive());
