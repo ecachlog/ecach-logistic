@@ -497,7 +497,7 @@
                     <div class="mhud" id="mobileAdrHud">ADR OK</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v3.4</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v3.5</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -525,7 +525,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v3.4</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v3.5</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -6771,10 +6771,22 @@
                         return `<button class="${active ? "primary" : "ghost"} small" data-action="accepted-type" data-type="${t.key}" style="${active ? `border-color:${t.color}` : ""}">${t.label} (${t.list.length})</button>`;
                     }).join("");
                     const sel = available.find(t => t.key === _acceptedType);
-                    const selSection = sel ? `<div class="card" style="margin-top:10px;background:${sel.bg};border-color:${sel.color}"><h3 style="margin:0 0 8px">${sel.label} aceptados (${sel.list.length})</h3><div class="cards">${sel.list.map(orderCard).join("")}</div></div>` : "";
+                    // Sort the selected list
+                    const sortedList = sel ? [...sel.list].sort((a, b) => {
+                        switch (_acceptedSortBy) {
+                            case "deadline": return (a.acceptBefore || a.deadline || 0) - (b.acceptBefore || b.deadline || 0);
+                            case "km_asc": return (a.kmRound || 0) - (b.kmRound || 0);
+                            case "km_desc": return (b.kmRound || 0) - (a.kmRound || 0);
+                            case "price_asc": return (a.offer || 0) - (b.offer || 0);
+                            case "price_desc": return (b.offer || 0) - (a.offer || 0);
+                            default: return 0;
+                        }
+                    }) : [];
+                    const selSection = sel ? `<div class="card" style="margin-top:10px;background:${sel.bg};border-color:${sel.color}"><h3 style="margin:0 0 8px">${sel.label} aceptados (${sel.list.length})</h3><div class="cards">${sortedList.map(orderCard).join("")}</div></div>` : "";
+                    const sortSelect = `<div class="row" style="gap:6px;align-items:center;margin-bottom:6px"><span class="muted" style="font-size:12px">Ordenar:</span><select onchange="_acceptedSortBy=this.value;renderOrders()" style="font-size:12px;padding:4px 8px;background:#1e2530;border:1px solid var(--line);color:var(--text);border-radius:6px"><option value="deadline" ${_acceptedSortBy==="deadline"?"selected":""}>⏰ Más urgente primero</option><option value="km_asc" ${_acceptedSortBy==="km_asc"?"selected":""}>📏 Distancia: menor a mayor</option><option value="km_desc" ${_acceptedSortBy==="km_desc"?"selected":""}>📏 Distancia: mayor a menor</option><option value="price_desc" ${_acceptedSortBy==="price_desc"?"selected":""}>💶 Precio: mayor a menor</option><option value="price_asc" ${_acceptedSortBy==="price_asc"?"selected":""}>💶 Precio: menor a mayor</option></select></div>`;
                     const sortInfo = `<p class="muted" style="font-size:12px;margin:8px 0">📅 Elige un tipo de pedido para ver solo esos. Dentro de cada tipo se ordenan por plazo (más urgente arriba); los que vencen en menos de 12h aparecen en rojo.</p>`;
                     const restToggle = `<label style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:6px;cursor:pointer"><input type="checkbox" onchange="_showDriverRest=this.checked;renderOrders()" ${_showDriverRest ? "checked" : ""}> <span class="muted">💤 Mostrar descanso de conductores en el desplegable</span></label>`;
-                    content = `${restToggle}<div class="row" style="gap:8px;flex-wrap:wrap">${tabButtons}</div>${sortInfo}${selSection}`;
+                    content = `${restToggle}<div class="row" style="gap:8px;flex-wrap:wrap">${tabButtons}</div>${sortInfo}${sortSelect}${selSection}`;
                 }
             } else if (_ordersTab === "active") {
                 content = activeOrders.length ? `<div class="cards">${activeOrders.map(orderCard).join("")}</div>` : `<p class="muted">No hay pedidos en ruta ahora mismo.</p>`;
@@ -7776,6 +7788,7 @@
         let _slotsStopRequested = false; // user asked to stop the auto loop
         // ===== CASINO STATE =====
         let _showDriverRest = false; // toggled by checkbox in dispatch panel
+        let _acceptedSortBy = "deadline"; // deadline | km_asc | km_desc | price_asc | price_desc
         let _casinoTab = "slots"; // slots | trilero
 
         // ===== TRILERO CONSTANTS =====
