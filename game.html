@@ -9677,7 +9677,7 @@
             const totalKm = contract.kmRound * contract.tripsTotal;
             const perTrip = parseFloat((contract.kmRound * contract.pricePerKm).toFixed(2));
             const totalValue = parseFloat((perTrip * contract.tripsTotal).toFixed(2));
-            const msg = `¿ACEPTAR contrato de alianza?\n\n📦 ${contract.tripsTotal} viajes iguales:\n   Carga: ${contract.portName}\n   Descarga: ${contract.destinationCity}\n   Producto: ${contract.product}\n\n💰 ${contract.pricePerKm.toFixed(2)} €/km × ${fmtNum(contract.kmRound)} km = ${fmtMoney(perTrip)} por viaje\n   Total ${contract.tripsTotal} viajes = ${fmtMoney(totalValue)}\n\n⏰ Plazo: 10 días desde la aceptación\n⚠️ Sanción si no completas a tiempo o cancelas: ${fmtMoney(3000)}\n⚠️ Solo puedes tener 1 contrato de alianza activo a la vez\n\nAl aceptar se añadirán ${contract.tripsTotal} pedidos a tu apartado "Pedidos → ⚔️ Alianza" para que los despaches.`;
+            const msg = `¿ACEPTAR contrato de alianza?\n\n📦 ${contract.tripsTotal} viajes iguales:\n   Carga: ${contract.portName}\n   Descarga: ${contract.destinationCity}\n   Producto: ${contract.product}\n\n💰 ${contract.pricePerKm.toFixed(2)} €/km × ${fmtNum(contract.kmRound)} km = ${fmtMoney(perTrip)} por viaje\n   Total ${contract.tripsTotal} viajes = ${fmtMoney(totalValue)}\n\n⏰ Plazo: 10 días desde la aceptación\n⚠️ Sanción si no completas a tiempo: ${fmtMoney(5000)}\n⚠️ Una vez aceptado NO se puede cancelar\n⚠️ Solo puedes tener 1 contrato de alianza activo a la vez\n\nAl aceptar se añadirán ${contract.tripsTotal} pedidos a tu apartado "Pedidos → ⚔️ Alianza" para que los despaches.`;
             if (!confirm(msg)) return;
             try {
                 const result = await apiCall("POST", `/api/alliance-contracts/${contractId}/accept`);
@@ -9783,7 +9783,7 @@
         async function cancelAllianceContract() {
             if (!state.allianceActiveContract) return;
             const ac = state.allianceActiveContract;
-            const penalty = 3000;
+            const penalty = 5000;
             const pendingTrips = state.orders.filter(o => o.allianceOrder && o.status === "accepted").length;
             const inTransitTrips = state.orders.filter(o => o.allianceOrder && o.status === "in_transit").length;
             const completedTrips = ac.tripsCompleted || 0;
