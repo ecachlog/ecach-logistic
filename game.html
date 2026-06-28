@@ -497,7 +497,7 @@
                     <div class="mhud" id="mobileAdrHud">ADR OK</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v3.5</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v3.6</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -525,7 +525,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v3.5</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v3.6</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -4806,8 +4806,11 @@
                 const restCount = (trip.schedule || []).filter(l => l.type === "rest" && (l.durationMs || 0) >= TACHO_DAILY_REST_HOURS * MS_HOUR * 0.8).length;
                 addEmail("contratos@ecachlogistic.eu", `Viaje aeroportuario completado · ${fmtMoney(pay)}`,
                     `Has entregado el viaje ${ac.tripN} de tu contrato aeroportuario.\n\n✈️ Destino: ${ac.airportName || "Aeropuerto"}\n📏 Distancia: ${fmtNum(trip.kmRound || 0)} km · ${ac.pricePerKm.toFixed(2)} €/km\n💵 Cobro: ${fmtMoney(pay)}\n🚛 Matrícula: ${trip.truckPlate || "—"}\n👤 Conductor(es): ${driverNames || "—"}\n🛏 Descansos en ruta: ${restCount}\n💰 Alianza: +1.000€ al Fondo Privado\n\nEl camión ha vuelto a tu base.`, "finance");
-                // 0,001 €/km to the alliance (same as any trip)
-                if ((trip.kmRound || 0) > 0) apiCall("POST", "/api/alliances/accumulate-km", { km: trip.kmRound }).catch(() => {});
+                // 0,001 €/km to the alliance — retry up to 3 times on failure
+                if ((trip.kmRound || 0) > 0) {
+                    const accKm = () => apiCall("POST", "/api/alliances/accumulate-km", { km: trip.kmRound });
+                    accKm().catch(() => setTimeout(() => accKm().catch(() => setTimeout(() => accKm().catch(() => {}), 15000)), 5000));
+                }
                 // Mark the contract trip as done on the backend (pays 1000€ to alliance private fund)
                 // and pay the player — all happens when the truck reaches base.
                 apiCall("POST", `/api/airport-contracts/${ac.contractId}/trip`, { tripN: ac.tripN, state: "done", company: state.companyName || state.warehouse?.companyName || "" })
@@ -4855,7 +4858,8 @@
             // local _inAlliance flag being correctly synced (which could miss contributions).
             const kmForAlliance = order.kmRound || trip.kmRound || 0;
             if (kmForAlliance > 0) {
-                apiCall("POST", "/api/alliances/accumulate-km", { km: kmForAlliance }).catch(() => {});
+                const accKmNormal = () => apiCall("POST", "/api/alliances/accumulate-km", { km: kmForAlliance });
+                accKmNormal().catch(() => setTimeout(() => accKmNormal().catch(() => setTimeout(() => accKmNormal().catch(() => {}), 15000)), 5000));
             }
             state.tripsCompleted++;
             // Loyalty +1 for serving this client's order (not for helper orders — that loyalty goes to the owner)
