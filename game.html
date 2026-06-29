@@ -2300,12 +2300,41 @@
                 });
                 state._kmMigrationV3 = true;
             }
-            // Safety: clean stuck trips where endTs is in the past by more than 1 hour (likely lost completion)
+            // Safety: force-complete any trip whose endTs passed more than 30 minutes ago.
+            // Use setTimeout so completeTrip is available when it runs.
             if (Array.isArray(state.activeTrips)) {
+                const now = Date.now();
+                const stuckIds = state.activeTrips
+                    .filter(t => t.endTs && now > t.endTs + 30 * 60 * 1000)
+                    .map(t => t.id);
+                if (stuckIds.length) {
+                    setTimeout(() => {
+                        stuckIds.forEach(id => {
+                            const t = state.activeTrips.find(a => a.id === id);
+                            if (!t) return;
+                            try {
+                                t.pauses = [];
+                                completeTrip(t);
+                            } catch(e) {
+                                state.activeTrips = state.activeTrips.filter(a => a.id !== id);
+                                const now2 = Date.now();
+                                (t.driverIds || []).forEach(dId => {
+                                    const w = state.workers.find(w => w.id === dId);
+                                    if (w) { w.status = "Disponible"; w.currentTripId = null; w.restStartTs = now2; }
+                                });
+                                const truck = state.fleet.find(f => f.id === t.truckId);
+                                if (truck) { truck.status = "Disponible"; truck.currentTripId = null; }
+                                const cistern = state.cisterns.find(c => c.id === t.cisternId);
+                                if (cistern) { cistern.status = "Disponible"; cistern.currentTripId = null; }
+                            }
+                        });
+                        renderAll(); saveGame(true);
+                    }, 2000);
+                }
+                // Also clear expired pauses on remaining trips
                 state.activeTrips.forEach(t => {
-                    // Clear expired pauses
                     if (t.pauses && t.pauses.length) {
-                        t.pauses = t.pauses.filter(p => p.startTs + (p.durationMs || 0) > Date.now() - MS_HOUR);
+                        t.pauses = t.pauses.filter(p => p.startTs + (p.durationMs || 0) > now - MS_HOUR);
                     }
                 });
             }
