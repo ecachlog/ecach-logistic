@@ -4711,7 +4711,9 @@
                 if (!activePause(trip, now) && now >= trip.endTs) {
                     const info = routeProgressInfo(trip, now);
                     const inLongRest = info.phaseType === "rest" && info.activeLeg && (info.activeLeg.durationMs || 0) >= TACHO_DAILY_REST_HOURS * MS_HOUR * 0.8;
-                    if (!inLongRest) completeTrip(trip);
+                    // If stuck in long rest but endTs passed more than 2h ago, force completion anyway
+                    const stuckTooLong = now - trip.endTs > 2 * MS_HOUR;
+                    if (!inLongRest || stuckTooLong) completeTrip(trip);
                 }
             });
         }
