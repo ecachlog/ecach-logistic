@@ -497,7 +497,7 @@
                     <div class="mhud" id="mobileAdrHud">ADR OK</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v3.6</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v3.7</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -525,7 +525,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v3.6</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v3.7</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -11616,16 +11616,19 @@
                     }
                     // Available driver, no trip, who has been resting 11h+ but still has accumulated hours
                     // (the rest-complete event was lost): reset the driving bars to zero.
+                    // BUT: if there is a valid driver-tacho-reset or driver-rest-complete future event for this
+                    // driver, leave it alone — the event will reset the tacho when the time comes.
                     const noTrip = !w.currentTripId && !(state.activeTrips || []).some(tr => (tr.driverIds || []).includes(w.id));
                     const restedLongEnough = w.restStartTs && (Date.now() - w.restStartTs) >= 11 * 3600 * 1000;
-                    if (w.status === "Disponible" && noTrip && restedLongEnough && ((w.continuousDriving || 0) > 0 || (w.drivingToday || 0) > 0 || w.restUntilTs || w.restMandatory)) {
+                    const hasPendingTachoEvent = (state.futureEvents || []).some(e =>
+                        (e.type === "driver-tacho-reset" || e.type === "driver-rest-complete") && e.driverId === w.id
+                    );
+                    if (w.status === "Disponible" && noTrip && restedLongEnough && !hasPendingTachoEvent && ((w.continuousDriving || 0) > 0 || (w.drivingToday || 0) > 0 || w.restUntilTs || w.restMandatory)) {
                         w.continuousDriving = 0;
                         w.drivingToday = 0;
                         w.restUntilTs = null;
                         w.restMandatory = false;
                         w.restLocked = false;
-                        // DO NOT overwrite restStartTs here — it marks when rest began and is used by
-                        // the render to show elapsed rest time. Only update lastRestEndTs.
                         w.lastRestEndTs = Date.now();
                         repaired = true;
                     }
