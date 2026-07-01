@@ -497,7 +497,7 @@
                     <div class="mhud" id="mobileAdrHud">ADR OK</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v3.7</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v3.8</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -525,7 +525,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v3.7</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v3.8</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -1196,9 +1196,9 @@
             M: { name: "Nave M", trucks: 10, cisterns: 10, tank: 100000, buy: 350000, rent: 4200 }
         };
         const fuelProviders = [
-            { id: "fuel-1", name: "IberFuel Terminal", price: 1.36, etaHours: 18 },
-            { id: "fuel-2", name: "Mediterranean Oil Supply", price: 1.38, etaHours: 20 },
-            { id: "fuel-3", name: "EuroPetrol Bulk", price: 1.40, etaHours: 23 }
+            { id: "fuel-1", name: "IberFuel Terminal", price: 1.51, etaHours: 18 },
+            { id: "fuel-2", name: "Mediterranean Oil Supply", price: 1.53, etaHours: 20 },
+            { id: "fuel-3", name: "EuroPetrol Bulk", price: 1.55, etaHours: 23 }
         ];
         const loadingPorts = [
             { id: "port-barcelona", name: "Puerto de Barcelona", country: "ES", lat: 41.3525, lng: 2.1730, address: "Terminal petrolera, Puerto de Barcelona, España" },
@@ -5039,14 +5039,14 @@
             const day = dateKey(new Date(now));
             if (state.fuelQuotes?.length && state.fuelQuoteDay === day) return;
             // Same deterministic formula and seeds as the backend (buildDailyFuelProviders), so the fallback
-            // produces identical prices for all players on a given day.
+            // produces identical prices for all players on a given day. (+11% increase applied 2026-07-01)
             const dn = clientDayNumber(now);
             const r1 = seededRandClient(dn * 3 + 1);
             const r2 = seededRandClient(dn * 3 + 2);
             const r3 = seededRandClient(dn * 3 + 3);
             const rangeInt = (rnd, min, max) => Math.floor(rnd * (max - min + 1)) + min;
-            const fastPrice = Math.round((rangeInt(r1, 142, 160) / 100) * 1.20 * 100) / 100;
-            const slowPrice = Math.round(Math.max(0.95 * 1.20, fastPrice - rangeInt(r2, 20, 32) / 100) * 100) / 100;
+            const fastPrice = Math.round((rangeInt(r1, 142, 160) / 100) * 1.332 * 100) / 100;
+            const slowPrice = Math.round(Math.max(0.95 * 1.332, fastPrice - rangeInt(r2, 20, 32) / 100) * 100) / 100;
             const midPrice = Math.round(((fastPrice + slowPrice) / 2 + (rangeInt(r3, 0, 6) - 3) / 100) * 100) / 100;
             state.fuelQuoteDay = day;
             state.fuelQuotesUpdatedAt = now;
