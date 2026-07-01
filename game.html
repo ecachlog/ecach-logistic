@@ -4598,19 +4598,6 @@
                         const before = driver.drivingToday || 0;
                         driver.drivingToday = Math.min(before + hrs, TACHO_DAILY_DRIVE_HOURS);
                         driver.drivingWeek = Math.min((driver.drivingWeek || 0) + hrs, TACHO_WEEKLY_DRIVE_HOURS);
-                        // If this driver just hit 9h during this update, rebuild the schedule so the
-                        // next driver takes over immediately instead of waiting for the next tick.
-                        if (before < TACHO_DAILY_DRIVE_HOURS - 0.05 && driver.drivingToday >= TACHO_DAILY_DRIVE_HOURS - 0.05) {
-                            if (trip.driverIds.length >= 2) {
-                                const nextIdx = (idx + 1) % trip.driverIds.length;
-                                const nextId = trip.driverIds[nextIdx];
-                                const nextDriver = state.workers.find(w => w.id === nextId);
-                                if (nextDriver && (nextDriver.drivingToday || 0) < TACHO_DAILY_DRIVE_HOURS - 0.05) {
-                                    // Mark schedule rebuild needed — will be picked up after loop
-                                    trip._needsScheduleRebuild = true;
-                                }
-                            }
-                        }
                     };
                     const resetAllDrivers = () => {
                         trip.driverIds.forEach(id => {
@@ -4647,25 +4634,6 @@
                             }
                         }
                         cumHours = legEnd;
-                    }
-                    // If a driver hit 9h during this update, rebuild the schedule immediately
-                    // so the handover happens now rather than waiting for the next tick.
-                    if (trip._needsScheduleRebuild) {
-                        delete trip._needsScheduleRebuild;
-                        try {
-                            const order = (state.orders || []).find(o => o.id === trip.orderId);
-                            if (order) {
-                                const currentDriverStates = trip.driverIds.map(id => {
-                                    const d = state.workers.find(w => w.id === id);
-                                    return d ? { ...d } : null;
-                                }).filter(Boolean);
-                                const rebuilt = buildTripSchedule(order, { speed: trip.speed, state: trip.weather }, { multiplier: trip.trafficMultiplier || 1 }, currentDriverStates, trip.kmRound, now - trip.startTs);
-                                if (rebuilt && rebuilt.schedule) {
-                                    trip.schedule = rebuilt.schedule;
-                                    trip.lastTachoUpdateTs = now;
-                                }
-                            }
-                        } catch(e) { console.warn("Schedule rebuild error:", e.message); }
                     }
                 }
             }
