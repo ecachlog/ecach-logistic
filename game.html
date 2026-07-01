@@ -497,7 +497,7 @@
                     <div class="mhud" id="mobileAdrHud">ADR OK</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v3.8</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v4.2</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -525,7 +525,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v3.8</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v4.2</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -4796,7 +4796,18 @@
                 if (trailer) { trailer.status = "Base"; trailer.wear = clamp((trailer.wear || 0) + (trip.kmRound || 0) * .003, 0, 100); }
                 trip.driverIds.forEach(id => {
                     const driver = state.workers.find(w => w.id === id);
-                    if (driver) { driver.status = "Disponible"; driver.currentTripId = null; driver.kmDriven = (driver.kmDriven || 0) + (trip.kmRound || 0); }
+                    if (driver) {
+                        driver.status = "Disponible";
+                        driver.currentTripId = null;
+                        driver.kmDriven = (driver.kmDriven || 0) + (trip.kmRound || 0);
+                        // Airport-contract trips don't track drivingToday/rest hours during transit, so on
+                        // return the rest clock must be reset here too — otherwise restStartTs stays stale
+                        // (from before the trip) and the "descansando" counter never returns to zero.
+                        driver.drivingToday = 0;
+                        driver.continuousDriving = 0;
+                        driver.restStartTs = now;
+                        driver.lastRestEndTs = now;
+                    }
                 });
                 const pay = Math.round((trip.kmRound || 0) * (ac.pricePerKm || 0));
                 const contractRef = ac.contractId ? `Contrato #${shortId(ac.contractId)}-V${ac.tripN}` : `Contrato aeroportuario · viaje ${ac.tripN}`;
@@ -5968,8 +5979,11 @@
                             state.bank.balance -= COURSE_ADR_COST;
                             addMovement("expense", `Renovación ADR automática: ${worker.first} ${worker.last}`, -COURSE_ADR_COST);
                             worker.status = "Formación";
-                            worker.currentCourse = { type: "adr", startTs: Date.now(), endTs: Date.now() + COURSE_ADR_DAYS * 24 * 3600 * 1000, attempts: 1 };
-                            state.futureEvents.push({ id: uid("evt"), type: "course-end", workerId: worker.id, courseType: "adr", ts: worker.currentCourse.endTs });
+                            if (!worker.courses) worker.courses = { adr: null, duo: null, jetA1: null };
+                            const finishTs = Date.now() + COURSE_ADR_DAYS * 24 * 3600 * 1000;
+                            worker.courses.adr = { active: true, startTs: Date.now(), finishTs, attempts: (worker.courses.adr?.attempts || 0) + 1 };
+                            worker.currentCourse = { type: "adr", startTs: worker.courses.adr.startTs, endTs: finishTs, attempts: worker.courses.adr.attempts };
+                            state.futureEvents.push({ id: uid("evt"), type: "course-result", workerId: worker.id, courseKey: "adr", ts: finishTs });
                             addEmail("formacion@ecachlogistic.eu", `Renovación ADR automática: ${worker.first} ${worker.last}`,
                                 `El carné ADR de ${worker.first} ${worker.last} caduca el ${fmtDate(event.adrExpiry)}.\n\nSe ha iniciado la renovación automática:\n· Coste: ${fmtMoney(COURSE_ADR_COST)} (ya descontado de tu saldo)\n· Duración: ${COURSE_ADR_DAYS} días\n· El conductor queda en FORMACIÓN hasta que apruebe\n\nSi no aprueba a la primera, deberás repetir el curso (500€ adicionales).`, "staff", worker.id);
                             notify("🔄 Renovación ADR automática", `${worker.first} ${worker.last} entra en formación ADR. Coste: ${fmtMoney(COURSE_ADR_COST)}. No disponible ${COURSE_ADR_DAYS} días.`, "warn", true);
@@ -6008,7 +6022,10 @@
                         driver.drivingToday = 0;
                         driver.continuousDriving = 0;
                         driver.lastRestEndTs = now;
-                        driver.restStartTs = now; // keep restStartTs in sync so render can show elapsed rest time
+                        // NOTE: restStartTs is intentionally NOT touched here. It marks when the driver
+                        // stopped driving, and the "descansando Xh" counter must keep accumulating from
+                        // that moment until the driver is dispatched on a new trip (which clears it) —
+                        // it does NOT reset just because the 11h tacho threshold was reached.
                         driver.restUntilTs = null;
                         driver.restMandatory = false;
                         driver.restLocked = false; // unlock when 11h rest completes
@@ -6563,7 +6580,7 @@
             }
             resetTachoIfNeeded(now);
             if (state.initialized && !state.gameOver) {
-                processWeather(now); processOrdersArrival(now); processCurriculums(now); processLoyaltyAutoOrders(now); processWorkerAnniversaries(now); processRaiseRequestExpiries(now); ensureCoversForAbsentWorkers(); enforceStaffRouteHolds(now); processTrips(now); processInvoices(now); processFutureEvents(now); processStaffEvents(now); processMonthlyBills(now); checkWarnings(now);
+                processWeather(now); processOrdersArrival(now); processCurriculums(now); processLoyaltyAutoOrders(now); processWorkerAnniversaries(now); processRaiseRequestExpiries(now); ensureCoversForAbsentWorkers(); enforceStaffRouteHolds(now); processTrips(now); processInvoices(now); processFutureEvents(now); processStaffEvents(now); syncTrainingStatus(now); processMonthlyBills(now); checkWarnings(now);
                 // Smooth truck movement every second; full map rebuild only when something structural changes
                 if (currentSection === "dashboard") {
                     drawMap();      // drawMap() now detects internally if static rebuild is needed
@@ -6979,19 +6996,29 @@
                         const schedule = trip.schedule || [];
                         const elapsed = Date.now() - tripStart;
                         let cumDur = 0;
+                        let legStartTs = null;
                         let legEndTs = null;
                         for (const leg of schedule) {
                             const legStart = cumDur;
                             cumDur += (leg.durationMs || 0);
                             if (elapsed >= legStart && elapsed < cumDur) {
+                                legStartTs = tripStart + legStart;
                                 legEndTs = tripStart + cumDur;
                                 break;
                             }
                         }
+                        if (legStartTs) {
+                            // Elapsed rest time starts counting from the moment this in-route rest began,
+                            // not only once the driver physically returns to base.
+                            const restedMs = Math.max(0, Date.now() - legStartTs);
+                            const restedH = Math.floor(restedMs / 3600000);
+                            const restedMin = Math.floor((restedMs % 3600000) / 60000);
+                            inRouteRestBadge = `<br><span style="font-size:11px;color:#35c759">😴 ${restedH}h ${restedMin}min descansando</span>`;
+                        }
                         if (legEndTs) {
                             const remHours = (legEndTs - Date.now()) / MS_HOUR;
                             if (remHours > 0) {
-                                inRouteRestBadge = `<br><span style="font-size:11px;color:#ff3b30">⏱ Termina en ${fmtDurationHours(remHours)}</span>`;
+                                inRouteRestBadge += `<br><span style="font-size:11px;color:#ff3b30">⏱ Termina en ${fmtDurationHours(remHours)}</span>`;
                             }
                         }
                     } catch(e) { console.warn("rest badge calc error", e); }
@@ -10495,6 +10522,34 @@
             renderAll(); saveGame(true);
         }
 
+        // Keeps worker.status/currentCourse in sync with worker.courses (adr/duo/jetA1) every tick.
+        // This is what makes enrolled workers show up in Personal → En formación, and blocks them
+        // from being dispatched (dispatch only offers status === "Disponible").
+        // IMPORTANT: never touches a worker who is currently driving (status "Conduciendo" or
+        // currentTripId set) — an active trip is never interrupted by a course. Once the trip
+        // finishes and the trip code resets the worker to "Disponible", the next tick of this
+        // function will correctly flip them back to "Formación" if their course is still running.
+        const TRAINING_PROTECTED_STATUSES = ["Baja médica", "Vacaciones", "Descanso obligatorio", "Descansando"];
+        function syncTrainingStatus(now = Date.now()) {
+            (state.workers || []).forEach(w => {
+                if (w.role !== "Conductor" || !w.courses) return;
+                if (w.status === "Conduciendo" || w.currentTripId) return; // never interrupt an active trip
+                if (TRAINING_PROTECTED_STATUSES.includes(w.status)) return; // sick leave / vacation / rest take priority
+                const activeKey = ["adr", "duo", "jetA1"].find(k => w.courses[k] && w.courses[k].active);
+                if (activeKey) {
+                    const c = w.courses[activeKey];
+                    if (w.status !== "Formación") w.status = "Formación";
+                    if (!w.currentCourse || w.currentCourse.type !== activeKey) {
+                        w.currentCourse = { type: activeKey, startTs: c.startTs || now, endTs: c.finishTs || now, attempts: c.attempts || 1 };
+                    }
+                } else if (w.status === "Formación") {
+                    // Course finished (or was cancelled) — free the worker up again
+                    w.status = "Disponible";
+                    w.currentCourse = null;
+                }
+            });
+        }
+
         function processRaiseRequestExpiries(now) {
             (state.workers || []).forEach(w => {
                 if (w.raiseRequested && w.raiseDeadline && now >= w.raiseDeadline) {
@@ -10506,6 +10561,7 @@
         function enrollCourse(workerId, courseKey) {
             const worker = state.workers.find(w => w.id === workerId);
             if (!worker || worker.role !== "Conductor") return;
+            if (courseKey !== "exp" && (worker.status === "Conduciendo" || worker.currentTripId)) return notify("Formación bloqueada", "No puedes apuntar a un curso a un conductor mientras está en ruta. Espera a que vuelva a base.", "warn", true);
             // Experience course: immediate effect, no waiting period
             if (courseKey === "exp") {
                 if (worker.expCourseDone) return notify("Ya realizado", `${worker.first} ${worker.last} ya hizo el curso de perfeccionamiento.`, "warn", true);
@@ -10539,6 +10595,8 @@
             const finishTs = Date.now() + days * MS_DAY;
             addMovement("expense", `Curso ${courseKey.toUpperCase()} · ${worker.first} ${worker.last}`, -cost);
             worker.courses[courseKey] = { active: true, startTs: Date.now(), finishTs, attempts: (worker.courses[courseKey]?.attempts || 0) + 1 };
+            worker.status = "Formación";
+            worker.currentCourse = { type: courseKey, startTs: worker.courses[courseKey].startTs, endTs: finishTs, attempts: worker.courses[courseKey].attempts };
             state.futureEvents.push({ id: uid("evt"), type: "course-result", workerId: worker.id, courseKey, ts: finishTs });
             const label = courseKey === "adr" ? "Renovación ADR" : courseKey === "jetA1" ? "Carné Jet A-1" : "Carné Duo Trailer";
             notify("Curso iniciado", `${label} para ${worker.first} ${worker.last}. Resultado en ${days} días.`, "info", true);
@@ -10623,27 +10681,33 @@
             const expDone = !!worker.expCourseDone;
             const expAtMax = (worker.experience || 0) >= 100;
             const expEligible = !expDone && !expAtMax;
+            const adrAttempts = adrCourse?.attempts || 0;
             const body = `<p><strong>${worker.first} ${worker.last}</strong></p>
             <div class="card" style="margin-bottom:10px">
                 <h3>Renovación ADR</h3>
                 <p>Caduca: <span class="mono">${fmtDate(worker.adrExpiry)}</span></p>
-                <p>Solo se puede renovar dentro del último mes antes de su caducidad. Coste: <span class="mono">${fmtMoney(COURSE_ADR_COST)}</span> · Duración: <strong>${COURSE_ADR_DAYS} días</strong>. Si suspende habrá que repetirlo.</p>
+                <p>Solo se puede renovar dentro del último mes antes de su caducidad. Coste: <span class="mono">${fmtMoney(COURSE_ADR_COST)}</span> · Duración: <strong>${COURSE_ADR_DAYS} días</strong>. Si suspende habrá que repetirlo (pagando de nuevo).</p>
+                <p class="muted" style="font-size:12px">⛔ Durante los ${COURSE_ADR_DAYS} días de curso el conductor queda <strong>No disponible</strong>: no podrá hacer viajes hasta que termine.</p>
+                ${adrAttempts > 0 ? `<p class="muted" style="font-size:12px">Intentos realizados hasta ahora: <strong>${adrAttempts}</strong></p>` : ""}
                 ${adrCourse?.active ? `<p class="badge warn">Curso en marcha · resultado el ${fmtDate(adrCourse.finishTs)}</p>` : `<button class="primary" data-action="enroll-course" data-id="${worker.id}" data-course="adr" ${adrEligible ? "" : "disabled"}>Inscribir curso ADR (${fmtMoney(COURSE_ADR_COST)})</button>`}
             </div>
             <div class="card" style="margin-bottom:10px">
                 <h3>Carné Duo Trailer</h3>
                 <p>Permite conducir el conjunto Duo Trailer (necesario a partir del nivel 10). Coste: <span class="mono">${fmtMoney(COURSE_DUO_COST)}</span> · Duración: <strong>${COURSE_DUO_DAYS} días</strong>. Voluntario, se puede hacer en cualquier momento.</p>
+                <p class="muted" style="font-size:12px">⛔ Durante los ${COURSE_DUO_DAYS} días de curso el conductor queda <strong>No disponible</strong>: no podrá hacer viajes hasta que termine.</p>
                 ${worker.duoLicense ? `<p class="badge ok">Ya tiene carné Duo Trailer.</p>` : duoCourse?.active ? `<p class="badge warn">Curso en marcha · resultado el ${fmtDate(duoCourse.finishTs)}</p>` : `<button class="primary" data-action="enroll-course" data-id="${worker.id}" data-course="duo" ${duoEligible ? "" : "disabled"}>Inscribir Duo Trailer (${fmtMoney(COURSE_DUO_COST)})</button>`}
             </div>
             <div class="card" style="margin-bottom:10px">
                 <h3>✈️ Carné Jet A-1</h3>
                 <p>Permite conducir el remolque <strong>Tank JetA1</strong> para los <strong>contratos aeroportuarios</strong> (transporte de combustible de aviación). Coste: <span class="mono">${fmtMoney(COURSE_JETA1_COST)}</span> · Duración: <strong>24 horas</strong>. No se puede inscribir si te deja en negativo.</p>
+                <p class="muted" style="font-size:12px">⛔ Durante las 24 horas de curso el conductor queda <strong>No disponible</strong>: no podrá hacer viajes hasta que termine.</p>
                 ${worker.jetA1License ? `<p class="badge ok">Ya tiene el carné Jet A-1.</p>` : jetA1Course?.active ? `<p class="badge warn">Curso en marcha · resultado el ${fmtDate(jetA1Course.finishTs)}</p>` : `<button class="primary" data-action="enroll-course" data-id="${worker.id}" data-course="jetA1" ${jetA1Eligible ? "" : "disabled"}>Inscribir Jet A-1 (${fmtMoney(COURSE_JETA1_COST)})</button>`}
             </div>
             <div class="card">
                 <h3>Curso de perfeccionamiento profesional</h3>
                 <p>Experiencia actual: <span class="mono">${(worker.experience || 0).toFixed(0)}%</span></p>
                 <p>Aumenta la experiencia del conductor en <strong>+${COURSE_EXP_GAIN}%</strong>. Un chofer con mayor experiencia es menos probable que tenga accidentes o incidentes en ruta. Coste: <span class="mono">${fmtMoney(COURSE_EXP_COST)}</span> · Solo se puede realizar UNA vez por chofer.</p>
+                <p class="muted" style="font-size:12px">✅ Efecto inmediato: no hay periodo de espera, el conductor sigue disponible para viajes.</p>
                 ${expDone ? `<p class="badge ok">✅ Ya realizó este curso.</p>` : expAtMax ? `<p class="badge ok">Experiencia ya al 100%, no necesita más formación.</p>` : `<button class="primary" data-action="enroll-course" data-id="${worker.id}" data-course="exp" ${expEligible ? "" : "disabled"}>Inscribir curso (${fmtMoney(COURSE_EXP_COST)})</button>`}
             </div>`;
             showModal(`Formación · ${worker.first} ${worker.last}`, body, [{ label: "Cerrar", className: "ghost", callback: closeModal }]);
@@ -12311,8 +12375,16 @@
             if (action === "hire") hireWorker(btn.dataset.role);
             if (action === "accept-cv") acceptCurriculum(id);
             if (action === "negotiate-cv") negotiateCurriculum(id);
-            if (action === "accept-raise") { acceptRaiseRequest(id); return; }
-            if (action === "reject-raise") { rejectRaiseRequest(id); return; }
+            if (action === "accept-raise") {
+                const w = state.workers.find(x => x.id === id);
+                if (w && w.pendingRaise) acceptDuoRaise(id); else acceptRaiseRequest(id);
+                return;
+            }
+            if (action === "reject-raise") {
+                const w = state.workers.find(x => x.id === id);
+                if (w && w.pendingRaise) rejectDuoRaise(id); else rejectRaiseRequest(id);
+                return;
+            }
             if (action === "toggle-rest-lock") {
                 const w = state.workers.find(x => x.id === id);
                 if (!w) return;
@@ -12353,8 +12425,6 @@
             if (action === "worker-absence") showWorkerAbsenceMenu(id);
             if (action === "train-worker") showTrainingMenu(id);
             if (action === "enroll-course") enrollCourse(id, btn.dataset.course);
-            if (action === "accept-raise") acceptDuoRaise(id);
-            if (action === "reject-raise") rejectDuoRaise(id);
             if (action === "maintain-truck") startMaintenance(id);
             if (action === "maintain-cistern") startCisternMaintenance(id);
             if (action === "finalize-renting") finalizeRenting(btn.dataset.kind, id);
