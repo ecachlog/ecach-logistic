@@ -499,7 +499,7 @@
                     <div class="mhud" id="mobileGasLowHud" style="display:none;background:#ff3b30;color:#fff;cursor:pointer" title="Una gasolinera de la alianza tiene menos de 10.000 litros de stock">⛽⚠️</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v4.6</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v4.7</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -527,7 +527,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v4.6</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v4.7</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -4815,17 +4815,33 @@
                 if (trailer) { trailer.status = "Base"; trailer.wear = clamp((trailer.wear || 0) + (trip.kmRound || 0) * .003, 0, 100); }
                 trip.driverIds.forEach(id => {
                     const driver = state.workers.find(w => w.id === id);
-                    if (driver) {
-                        driver.status = "Disponible";
-                        driver.currentTripId = null;
-                        driver.kmDriven = (driver.kmDriven || 0) + (trip.kmRound || 0);
-                        // Airport-contract trips don't track drivingToday/rest hours during transit, so on
-                        // return the rest clock must be reset here too — otherwise restStartTs stays stale
-                        // (from before the trip) and the "descansando" counter never returns to zero.
-                        driver.drivingToday = 0;
-                        driver.continuousDriving = 0;
+                    if (!driver) return;
+                    driver.currentTripId = null;
+                    driver.kmDriven = (driver.kmDriven || 0) + (trip.kmRound || 0);
+                    // Airport-contract trips use the SAME schedule engine (buildTripSchedule) as regular
+                    // trips, so drivingToday/continuousDriving are already being accumulated correctly in
+                    // real time during the trip (see the tacho-update block earlier in this function, which
+                    // only skips trips with trip.external — airport trips are not external). So on arrival
+                    // we must NOT blindly reset them to 0: we have to check whether the driver hit the 9h
+                    // limit and, if so, send them into mandatory rest — exactly like a regular trip does.
+                    const dailyDriven = driver.drivingToday || 0;
+                    const continuousDriven = driver.continuousDriving || 0;
+                    const mandatory = dailyDriven >= TACHO_DAILY_DRIVE_HOURS - 0.05 || continuousDriven >= TACHO_DAILY_DRIVE_HOURS - 0.05;
+                    if (mandatory) {
+                        const restNeeded = TACHO_DAILY_REST_HOURS * MS_HOUR;
+                        driver.restUntilTs = now + restNeeded;
+                        driver.restMandatory = true;
                         driver.restStartTs = now;
-                        driver.lastRestEndTs = now;
+                        driver.status = "Descanso obligatorio";
+                        driver.lastRestEndTs = now + restNeeded;
+                        state.futureEvents.push({ id: uid("evt"), type: "driver-rest-complete", driverId: driver.id, ts: driver.restUntilTs, createdAt: now });
+                    } else {
+                        driver.status = "Disponible";
+                        driver.restMandatory = false;
+                        driver.restStartTs = now;
+                        driver.restUntilTs = now + TACHO_DAILY_REST_HOURS * MS_HOUR;
+                        // DO NOT reset drivingToday/continuousDriving here — they stay until 11h rest completes
+                        state.futureEvents.push({ id: uid("evt"), type: "driver-tacho-reset", driverId: driver.id, ts: driver.restUntilTs, createdAt: now });
                     }
                 });
                 const pay = Math.round((trip.kmRound || 0) * (ac.pricePerKm || 0));
