@@ -499,7 +499,7 @@
                     <div class="mhud" id="mobileGasLowHud" style="display:none;background:#ff3b30;color:#fff;cursor:pointer" title="Una gasolinera de la alianza tiene menos de 10.000 litros de stock">⛽⚠️</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v4.7</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v4.8</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -527,7 +527,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v4.7</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v4.8</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -1501,6 +1501,15 @@
             if (h || days) parts.push(`${h}h`);
             if (m || !parts.length) parts.push(`${m}min`);
             return parts.join(" ");
+        }
+        // Shows driving hours with enough precision to tell "genuinely zero" apart from "a small amount
+        // that rounds to 0.0h with 1 decimal". Under 1h it shows exact minutes (e.g. "12 min"); 1h or
+        // more keeps the familiar "X.Xh" decimal format used throughout the tachograph UI.
+        function fmtDrivingHours(hours) {
+            const h = hours || 0;
+            if (h <= 0) return "0.0h";
+            if (h < 1) return `${Math.round(h * 60)} min`;
+            return `${h.toFixed(1)}h`;
         }
         const dateKey = (date = new Date()) => date.toISOString().slice(0, 10);
         const localDayKey = (date = new Date()) => {
@@ -6898,8 +6907,8 @@
             const truckOptions = state.fleet.filter(t => t.status === "Base" && sameBase(t) && (isDuoOrder ? t.duoTrailer : !t.duoTrailer)).map(t => `<option value="${t.id}" ${(selTruck ? selTruck === t.id : fixedTeam?.truckId === t.id) ? "selected" : ""}>${t.plate} · ${t.brand} ${t.model} · ${t.consumption}L/100 · ${fmtLiters(t.fuel)}</option>`).join("");
             const isAirport = !!order.airportContract;
             const cisternOptions = state.cisterns.filter(c => c.status === "Base" && sameBase(c) && (isAirport ? c.jetA1 : (!c.jetA1 && (isDuoOrder ? c.capacity >= 64000 : c.capacity < 64000)))).map(c => `<option value="${c.id}" ${(selCistern ? selCistern === c.id : fixedTeam?.cisternId === c.id) ? "selected" : ""}>${c.plate} · ${c.brand} · ${fmtLiters(c.capacity)}</option>`).join("");
-            const driverOptions = state.workers.filter(w => w.role === "Conductor" && w.status === "Disponible" && w.adr && sameBase(w) && !w.restLocked && (isAirport ? w.jetA1License : true) && (isDuoOrder ? w.duoLicense : true)).map(d => { const restRef = d.restStartTs || d.lastRestEndTs || d.hiredAt; const restMs = restRef ? Math.max(0, Date.now() - restRef) : 0; const restH = Math.floor(restMs / 3600000); const restMin = Math.floor((restMs % 3600000) / 60000); const restStr = (_showDriverRest && restMs > 0) ? ` · 💤 ${restH}h ${restMin}min desc.` : ""; return `<option value="${d.id}" ${(selD1 ? selD1 === d.id : fixedTeam?.driver1Id === d.id) ? "selected" : ""}>${d.first} ${d.last} · hoy ${d.drivingToday.toFixed(1)}h${d.jetA1License ? " · Jet A-1 ✓" : ""}${d.duoLicense ? " · Duo ✓" : ""}${restStr}</option>`; }).join("");
-            const driver2Options = state.workers.filter(w => w.role === "Conductor" && w.status === "Disponible" && w.adr && sameBase(w) && !w.restLocked && (isAirport ? w.jetA1License : true) && (isDuoOrder ? w.duoLicense : true)).map(d => { const restRef = d.restStartTs || d.lastRestEndTs || d.hiredAt; const restMs = restRef ? Math.max(0, Date.now() - restRef) : 0; const restH = Math.floor(restMs / 3600000); const restMin = Math.floor((restMs % 3600000) / 60000); const restStr = (_showDriverRest && restMs > 0) ? ` · 💤 ${restH}h ${restMin}min desc.` : ""; return `<option value="${d.id}" ${(selD2 ? selD2 === d.id : fixedTeam?.driver2Id === d.id) ? "selected" : ""}>${d.first} ${d.last} · hoy ${d.drivingToday.toFixed(1)}h${d.jetA1License ? " · Jet A-1 ✓" : ""}${d.duoLicense ? " · Duo ✓" : ""}${restStr}</option>`; }).join("");
+            const driverOptions = state.workers.filter(w => w.role === "Conductor" && w.status === "Disponible" && w.adr && sameBase(w) && !w.restLocked && (isAirport ? w.jetA1License : true) && (isDuoOrder ? w.duoLicense : true)).map(d => { const restRef = d.restStartTs || d.lastRestEndTs || d.hiredAt; const restMs = restRef ? Math.max(0, Date.now() - restRef) : 0; const restH = Math.floor(restMs / 3600000); const restMin = Math.floor((restMs % 3600000) / 60000); const restStr = (_showDriverRest && restMs > 0) ? ` · 💤 ${restH}h ${restMin}min desc.` : ""; return `<option value="${d.id}" ${(selD1 ? selD1 === d.id : fixedTeam?.driver1Id === d.id) ? "selected" : ""}>${d.first} ${d.last} · hoy ${fmtDrivingHours(d.drivingToday)}${d.jetA1License ? " · Jet A-1 ✓" : ""}${d.duoLicense ? " · Duo ✓" : ""}${restStr}</option>`; }).join("");
+            const driver2Options = state.workers.filter(w => w.role === "Conductor" && w.status === "Disponible" && w.adr && sameBase(w) && !w.restLocked && (isAirport ? w.jetA1License : true) && (isDuoOrder ? w.duoLicense : true)).map(d => { const restRef = d.restStartTs || d.lastRestEndTs || d.hiredAt; const restMs = restRef ? Math.max(0, Date.now() - restRef) : 0; const restH = Math.floor(restMs / 3600000); const restMin = Math.floor((restMs % 3600000) / 60000); const restStr = (_showDriverRest && restMs > 0) ? ` · 💤 ${restH}h ${restMin}min desc.` : ""; return `<option value="${d.id}" ${(selD2 ? selD2 === d.id : fixedTeam?.driver2Id === d.id) ? "selected" : ""}>${d.first} ${d.last} · hoy ${fmtDrivingHours(d.drivingToday)}${d.jetA1License ? " · Jet A-1 ✓" : ""}${d.duoLicense ? " · Duo ✓" : ""}${restStr}</option>`; }).join("");
             const externalActive = state.activeTrips.filter(t => t.external).length;
             const fixedTeamBadge = fixedTeam ? `<p class="badge ok">🔒 Equipo fijo: ${fixedTeam.truckPlate || ""} · ${fixedTeam.cisternPlate || ""} · ${fixedTeam.driver1Name || ""}${fixedTeam.driver2Name ? " + " + fixedTeam.driver2Name : ""} <button class="ghost" style="font-size:11px;padding:2px 8px;margin-left:8px" data-action="unlock-team" data-baseid="${order.baseId || "main"}">🔓 Desmontar</button></p>` : "";
             const duoBadge = isDuoOrder ? `<p class="badge orange" style="margin-bottom:8px">🚛 Pedido Duo Trailer 64.000 L · Solo se muestran tractoras Duo Trailer, remolques de 64.000 L y conductores con carné Duo.</p>` : "";
@@ -7118,7 +7127,7 @@
                             <div style="flex:1;background:#1e2530;border-radius:4px;height:8px;min-width:60px">
                                 <div style="width:${dailyPct}%;background:${dailyColor};height:8px;border-radius:4px;transition:.3s"></div>
                             </div>
-                            <span style="font-size:12px;color:${dailyColor};font-weight:700">${daily.toFixed(1)}h / 9h</span>
+                            <span style="font-size:12px;color:${dailyColor};font-weight:700">${fmtDrivingHours(daily)} / 9h</span>
                         </div>
                     </td>
                     <td>${lockBtn}</td>
@@ -7335,7 +7344,7 @@
                         <div style="flex:1;background:#1e2530;border-radius:4px;height:8px">
                             <div style="width:${dailyPct}%;background:${dailyColor};height:8px;border-radius:4px"></div>
                         </div>
-                        <span style="font-size:12px;color:${dailyColor};font-weight:700;width:60px">${daily.toFixed(1)}h / 9h</span>
+                        <span style="font-size:12px;color:${dailyColor};font-weight:700;width:60px">${fmtDrivingHours(daily)} / 9h</span>
                     </div>
                 </div>`;
             })() : "";
@@ -12341,7 +12350,7 @@
                             const adrBadge = d.adr ? "ADR ✓" : "Sin ADR";
                             const duoBadge = d.duoLicense ? " · Duo ✓" : "";
                             const expBadge = d.experience ? ` · Exp ${d.experience}%` : "";
-                            return `<div style="padding:8px;border-bottom:1px solid var(--line)"><strong>${d.first} ${d.last}</strong><br><span style="font-size:12px">${statusBadge} · Hoy ${(d.drivingToday || 0).toFixed(1)}h · ${adrBadge}${duoBadge}${expBadge}</span></div>`;
+                            return `<div style="padding:8px;border-bottom:1px solid var(--line)"><strong>${d.first} ${d.last}</strong><br><span style="font-size:12px">${statusBadge} · Hoy ${fmtDrivingHours(d.drivingToday)} · ${adrBadge}${duoBadge}${expBadge}</span></div>`;
                         }).join("");
                         listEl.innerHTML = rows;
                     }
