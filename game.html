@@ -499,7 +499,7 @@
                     <div class="mhud" id="mobileGasLowHud" style="display:none;background:#ff3b30;color:#fff;cursor:pointer" title="Una gasolinera de la alianza tiene menos de 10.000 litros de stock">⛽⚠️</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v5.1</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v5.2</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -527,7 +527,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v5.1</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v5.2</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -6591,6 +6591,7 @@
         let _coachChecked = false;
         let _newsChecked = false;
         function tick() {
+            if (window._resumeCheckInProgress) return; // avoid racing with the async cloud-freshness check on resume
             const now = Date.now();
             updateClock(now);
             // Start the guided tutorial once for brand-new players (before they even place the base)
@@ -13156,6 +13157,7 @@
                 // interval would blindly push it to the cloud and silently erase the other device's progress.
                 // So before doing anything else, check the cloud's timestamp and adopt it if it's newer.
                 if (fbUser && fbUser.uid && typeof apiCall === "function") {
+                    window._resumeCheckInProgress = true;
                     try {
                         const result = await apiCall("GET", "/api/save");
                         if (result && result.exists && result.state) {
@@ -13178,6 +13180,7 @@
                             }
                         }
                     } catch (e) { console.warn("[resume] cloud freshness check failed", e); }
+                    finally { window._resumeCheckInProgress = false; }
                 }
                 console.log(`[resume] processing ${Math.round(gap/1000)}s of elapsed time in steps`);
                 // If the gap is large (mobile browser suspended tab), simulate intermediate timestamps
