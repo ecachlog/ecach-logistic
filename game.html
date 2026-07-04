@@ -499,7 +499,7 @@
                     <div class="mhud" id="mobileGasLowHud" style="display:none;background:#ff3b30;color:#fff;cursor:pointer" title="Una gasolinera de la alianza tiene menos de 10.000 litros de stock">⛽⚠️</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v4.8</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v5.1</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -527,7 +527,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v4.8</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v5.1</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -1502,14 +1502,14 @@
             if (m || !parts.length) parts.push(`${m}min`);
             return parts.join(" ");
         }
-        // Shows driving hours with enough precision to tell "genuinely zero" apart from "a small amount
-        // that rounds to 0.0h with 1 decimal". Under 1h it shows exact minutes (e.g. "12 min"); 1h or
-        // more keeps the familiar "X.Xh" decimal format used throughout the tachograph UI.
+        // Shows driving hours as exact hours + minutes (e.g. "8h 54min") instead of decimal ("8.9h"),
+        // since decimal hours don't map intuitively onto a 60-minute clock. Used everywhere the
+        // tachograph shows driven time: dispatch dropdown, driver map popup, Flota and Personal tabs.
         function fmtDrivingHours(hours) {
-            const h = hours || 0;
-            if (h <= 0) return "0.0h";
-            if (h < 1) return `${Math.round(h * 60)} min`;
-            return `${h.toFixed(1)}h`;
+            const totalMin = Math.round((hours || 0) * 60);
+            const h = Math.floor(totalMin / 60);
+            const m = totalMin % 60;
+            return h > 0 ? `${h}h ${m}min` : `${m}min`;
         }
         const dateKey = (date = new Date()) => date.toISOString().slice(0, 10);
         const localDayKey = (date = new Date()) => {
@@ -6667,7 +6667,7 @@
             if (typeof updateMsgBell === "function") updateMsgBell();
             if (typeof applyTranslations === "function") applyTranslations();
         }
-        function renderFast() { renderDashboardMetrics(); renderAlerts(); if (currentSection === "dashboard") renderWeather(); if (typeof applyTranslations === "function") applyTranslations(); }
+        function renderFast() { renderDashboardMetrics(); renderAlerts(); if (currentSection === "dashboard") renderWeather(); if (currentSection === "fleet") renderFleet(); if (currentSection === "staff") renderStaff(); if (typeof applyTranslations === "function") applyTranslations(); }
         function renderDashboard() { renderSetupOverlay(); renderDashboardMetrics(); renderWeather(); renderAlerts(); }
         function renderSetupOverlay() {
             const overlay = $("setupOverlay");
@@ -13143,13 +13143,42 @@
         // This is critical: setInterval doesn't fire while tab is hidden or computer suspended,
         // so when we return there's a large time gap that must be processed at once.
         let _lastVisibleTickAt = Date.now();
-        function handleVisibilityResume() {
+        async function handleVisibilityResume() {
             const now = Date.now();
             const gap = now - _lastVisibleTickAt;
             _lastVisibleTickAt = now;
             // Only act if more than 30 seconds have passed
             if (gap < 30000) return;
             try {
+                // CROSS-DEVICE CONFLICT CHECK: while this tab was hidden/backgrounded, another device could
+                // have saved a newer partida (e.g. you left this tab open and played on your phone in the
+                // meantime). If we just resumed with this device's stale in-memory state, the 10s autosave
+                // interval would blindly push it to the cloud and silently erase the other device's progress.
+                // So before doing anything else, check the cloud's timestamp and adopt it if it's newer.
+                if (fbUser && fbUser.uid && typeof apiCall === "function") {
+                    try {
+                        const result = await apiCall("GET", "/api/save");
+                        if (result && result.exists && result.state) {
+                            const cloudState = result.state;
+                            const cloudTs = cloudState.lastSaveTs || 0;
+                            const localTs = state.lastSaveTs || 0;
+                            if (cloudTs > localTs && JSON.stringify(cloudState) !== JSON.stringify(state)) {
+                                console.log("[resume] Cloud has a newer save from another device — adopting it", { cloudTs, localTs });
+                                window._skipAutoCloudSave = true; // pause autosave while we swap the state underneath it
+                                Object.keys(state).forEach(k => { delete state[k]; });
+                                Object.assign(state, cloudState);
+                                localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+                                if (typeof loadGame === "function") loadGame();
+                                if (typeof renderAll === "function") renderAll();
+                                if (typeof drawMap === "function") drawMap(true);
+                                if (typeof notify === "function") notify("🔄 Partida actualizada", "Se detectó una partida más reciente guardada desde otro dispositivo y se ha cargado automáticamente, para no perder ese progreso.", "info", true);
+                                window._skipAutoCloudSave = false;
+                                _lastVisibleTickAt = now;
+                                return; // don't run the local catch-up simulation on top of a freshly replaced state
+                            }
+                        }
+                    } catch (e) { console.warn("[resume] cloud freshness check failed", e); }
+                }
                 console.log(`[resume] processing ${Math.round(gap/1000)}s of elapsed time in steps`);
                 // If the gap is large (mobile browser suspended tab), simulate intermediate timestamps
                 // so trips advance through their schedule without skipping events
