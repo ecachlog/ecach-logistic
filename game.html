@@ -499,7 +499,7 @@
                     <div class="mhud" id="mobileGasLowHud" style="display:none;background:#ff3b30;color:#fff;cursor:pointer" title="Una gasolinera de la alianza tiene menos de 10.000 litros de stock">⛽⚠️</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v5.3</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v5.5</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -527,7 +527,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v5.3</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v5.5</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -3881,7 +3881,10 @@
                     baseId: state.warehouse.id,
                     landLocked: true,
                     priceMode: "km",
-                    priceKm: rand(20, 40) / 10,
+                    // Existing offices (built before this update) don't have priceKmMin/Max saved, so they
+                    // fall back to the original 2.0-4.0€/km range and are unaffected. Offices built from now
+                    // on get the lower 2.0-2.5€/km range set at construction time.
+                    priceKm: rand((office.priceKmMin ?? 2.0) * 10, (office.priceKmMax ?? 4.0) * 10) / 10,
                     fixedPrice: 0,
                     frequency: "oficina comercial",
                     payment: pick(["inmediato", "24h", "3-7 días"]),
@@ -12035,7 +12038,7 @@
             }
             const officeName = escapeHtml(($("setupOfficeName")?.value || "").trim() || `Oficina comercial ${state.commercialOffices.length + 1}`);
             if (!confirm(`¿Construir "${officeName}" aquí?\n\n💰 Coste de construcción: ${fmtMoney(officeCost)}\n📅 Gestión mensual: ${fmtMoney(COMMERCIAL_OFFICE_MONTHLY_COST)}/mes\n\nSaldo actual: ${fmtMoney(state.bank.balance)}\nSaldo tras construir: ${fmtMoney(state.bank.balance - officeCost)}\n\n⚠️ No se puede mover la ubicación después (salvo un traslado único de pago).\n\n¿Confirmar construcción?`)) return;
-            const office = { id: uid("office"), name: officeName, lat: selectedWarehouse.lat, lng: selectedWarehouse.lng, address: `Oficina ECACH - ${selectedWarehouse.lat.toFixed(5)}, ${selectedWarehouse.lng.toFixed(5)}`, createdAt: Date.now(), monthlyCost: COMMERCIAL_OFFICE_MONTHLY_COST, locked: true };
+            const office = { id: uid("office"), name: officeName, lat: selectedWarehouse.lat, lng: selectedWarehouse.lng, address: `Oficina ECACH - ${selectedWarehouse.lat.toFixed(5)}, ${selectedWarehouse.lng.toFixed(5)}`, createdAt: Date.now(), monthlyCost: COMMERCIAL_OFFICE_MONTHLY_COST, locked: true, priceKmMin: 2.0, priceKmMax: 2.5 };
             state.commercialOffices.push(office);
             addMovement("expense", `Construccion ${office.name}`, -officeCost);
             addingOfficeMode = false;
