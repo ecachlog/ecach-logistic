@@ -499,7 +499,7 @@
                     <div class="mhud" id="mobileGasLowHud" style="display:none;background:#ff3b30;color:#fff;cursor:pointer" title="Una gasolinera de la alianza tiene menos de 10.000 litros de stock">⛽⚠️</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v5.9</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v6.1</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -527,7 +527,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v5.9</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v6.1</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -4844,18 +4844,31 @@
             const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
             return key === ADR_AMNESTY_DAY;
         }
-        function maybeIssueAdrFine(trip, restriction, now = Date.now()) {
+        async function maybeIssueAdrFine(trip, restriction, now = Date.now()) {
             if (isAdrAmnestyNow(now)) return; // amnistía de lanzamiento: sin multas ADR hoy
             if (!_alliancePrizeLoaded) return; // wait for alliance prize status to load before fining — avoids
             // fining in the first seconds after opening the game, before we know if another alliance member
             // activated the anti-fine prize while we were away. Retried again next tick once loaded.
             if (activeBuff("noFinesUntil", now)) return; // premio de ruleta
-            if (typeof allianceNoFinesActive === "function" && allianceNoFinesActive()) return; // premio de alianza
+            if (typeof allianceNoFinesActive === "function" && allianceNoFinesActive()) return; // premio de alianza (dato en caché)
             const key = `${restriction.startTs}-${restriction.endTs}`;
             if (!Array.isArray(trip.adrFinePeriods)) trip.adrFinePeriods = [];
             if (trip.adrFinePeriods.includes(key)) return;
-            trip.adrFinePeriods.push(key);
+            trip.adrFinePeriods.push(key); // marcar ya, para no volver a tirar el dado en el siguiente tick mientras esperamos
             if (Math.random() >= .15) return; // 15% de probabilidad (antes 35%)
+            // ÚLTIMA COMPROBACIÓN EN VIVO, justo antes de cobrar de verdad: consulta directa al servidor (no la
+            // caché local de 30s) para eliminar por completo la ventana de fallo. Si un compañero activó el
+            // antimultas hace un segundo y nuestra caché local todavía no se había enterado, esto lo detecta
+            // igualmente. Si la consulta falla por cualquier motivo (sin red, servidor caído...), por seguridad
+            // NO se multa esta vez — es preferible perder alguna multa legítima a multar por error.
+            try {
+                const data = await apiCall("GET", "/api/alliances/mine");
+                if (data?.alliance?.activePrizeId && data.alliance.activePrizeExpires > Date.now()) {
+                    _activeAlliancePrize = { id: data.alliance.activePrizeId, expiresAt: data.alliance.activePrizeExpires };
+                    state._cachedAlliancePrize = _activeAlliancePrize;
+                    if (data.alliance.activePrizeId === "no-fines-24h") return; // protegido de verdad, no se multa
+                }
+            } catch (e) { return; } // fallo de red: no arriesgarse, no multar esta vez
             const reason = `${restriction.reason} Circulacion detectada a las ${fmtDate(now)}.`;
             addReceivedInvoice("Multa ADR trafico", 1000, now + 30 * MS_DAY, "Multa ADR", `${trip.truckPlate}: ${reason}`);
             addEmail("sanciones@trafico.eu", `Multa ADR ${trip.truckPlate}`, `Camion: ${trip.truckPlate}. Fecha y hora: ${fmtDate(now)}. Motivo: ${reason}. Importe: ${fmtMoney(1000)}.`, "invoice", trip.id);
@@ -13333,7 +13346,9 @@
         setTimeout(_refreshAlliancePrize, 2000); // load 2s after game starts — before any trips tick
         setTimeout(showNewsPopupIfNeeded, 2500); // show news popup once per player
 
-        setInterval(_refreshAlliancePrize, 5 * 60 * 1000); // refresh every 5 min
+        setInterval(_refreshAlliancePrize, 30 * 1000); // refresh every 30s (was 5 min) — a teammate could activate
+        // the anti-fine prize mid-session and we don't want a 5-minute blind spot where a truck could still get
+        // fined despite the alliance's protection already being active globally.
 
 
         // Force Firebase save every 10s to keep ranking updated for everyone
