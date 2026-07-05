@@ -499,7 +499,7 @@
                     <div class="mhud" id="mobileGasLowHud" style="display:none;background:#ff3b30;color:#fff;cursor:pointer" title="Una gasolinera de la alianza tiene menos de 10.000 litros de stock">⛽⚠️</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v5.5</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v5.6</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -527,7 +527,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v5.5</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v5.6</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -1008,6 +1008,14 @@
         const roadTaxKm = { ES: 0.18, FR: 0.29, IT: 0.27, PT: 0.19, DE: 0.34, NL: 0.22 };
         const countryLabels = { ES: "España", FR: "Francia", IT: "Italia", PT: "Portugal", DE: "Alemania", NL: "Países Bajos" };
         const AVG_DIESEL_PRICE = 1.48;
+        // --- AdBlue (urea/DEF) system — mirrors the diesel system at a smaller scale ---
+        const ADBLUE_BASE_TANK_L = 5000; // warehouse tank base capacity (level 1 / no expansions)
+        const ADBLUE_TANK_PER_EXPANSION_L = 5000; // +5000L per "Ampliar nave" expansion, same trigger as +50.000L diesel
+        const ADBLUE_TRUCK_TANK_L = 80; // fixed AdBlue tank size per truck (real trucks: ~50-90L regardless of size)
+        const ADBLUE_CONSUMPTION_RATIO = 0.05; // AdBlue burn = 5% of the truck's diesel consumption (L/100km)
+        const ADBLUE_ROUTE_MARKUP = 1.30; // same 30% in-route markup as diesel
+        const ADBLUE_LOW_STOCK_RATIO = 0.08; // warn below 8% of current tank capacity (same ratio as diesel's 4.000/50.000)
+        const AVG_ADBLUE_PRICE = 0.45;
         const ADR_MAX_SPEED_KMH = 80;
         const AUTONOMO_KM_COST = 3.50;
         const DRIVER_HOURLY_COST = 22;
@@ -1207,6 +1215,11 @@
             { id: "fuel-1", name: "IberFuel Terminal", price: 1.51, etaHours: 18 },
             { id: "fuel-2", name: "Mediterranean Oil Supply", price: 1.53, etaHours: 20 },
             { id: "fuel-3", name: "EuroPetrol Bulk", price: 1.55, etaHours: 23 }
+        ];
+        const adblueProviders = [
+            { id: "adblue-1", name: "UreaExpress Terminal", price: 0.52, etaHours: 2 },
+            { id: "adblue-2", name: "NordBlue Supply", price: 0.45, etaHours: 8 },
+            { id: "adblue-3", name: "EuroDEF Bulk", price: 0.37, etaHours: 20 }
         ];
         const loadingPorts = [
             { id: "port-barcelona", name: "Puerto de Barcelona", country: "ES", lat: 41.3525, lng: 2.1730, address: "Terminal petrolera, Puerto de Barcelona, España" },
@@ -1448,6 +1461,7 @@
             ["9. Restricciones ADR", "Mercancías peligrosas no circulan domingos/festivos 08:00-22:00 ni vísperas desde las 15:00. Los autónomos tampoco pueden salir durante la prohibición ADR."],
             ["10. ITV cada 6 meses", "Cada 6 meses se debe pasar la ITV. Si el desgaste supera el 80%, la ITV no se aprueba y el vehículo queda parado hasta hacer la revisión."],
             ["11. Neumáticos cada 100.000 km", "Tractoras y remolques cambian ruedas a los 100.000 km. Aviso preventivo a los 90.000 km. Si compras un camión de segunda mano con las ruedas muy gastadas, te avisamos antes de comprarlo.\\n\\n🚛 TRACTORA (mismo precio sea renting o compra):\\n· Cambio urgente (1 hora): 3.000 €\\n· Cambio estándar (2 horas): 2.400 €\\nLa tractora Duo usa las mismas ruedas que una normal, así que cuesta lo mismo.\\n\\n🛢️ REMOLQUE / CISTERNA (una sola opción, 2 horas):\\n· Si es de RENTING: GRATIS (lo cubre la empresa de renting).\\n· Si es de COMPRA: 3.000 €.\\n· Remolque DUO: el doble de ruedas → el doble de precio. De renting sigue siendo GRATIS; de compra cuesta 6.000 €.\\n\\nDurante el cambio el vehículo queda parado el tiempo indicado."],
+            ["11b. 🧪 AdBlue", "Además del gasoil, cada tractora lleva un depósito de AdBlue. Se consume proporcionalmente al gasoil (según el consumo de cada camión) y se ve como un % junto al nivel de gasoil en Flota → Tractoras.\\n\\n🏢 DEPÓSITO DE LA NAVE: empieza con capacidad para AdBlue y crece cada vez que amplías la nave, igual que el depósito de gasoil.\\n\\n⛽ REPOSTAJE: automático al llegar a base y al salir de ruta, igual que el gasoil (si tienes activado el repostaje automático).\\n\\n🛒 COMPRA: 3 proveedores con precio y tiempo de entrega distintos, igual que el gasoil — el más caro llega antes, el más barato tarda más.\\n\\n⚠️ SI SE AGOTA EN RUTA: el camión reposta automáticamente en ruta a un precio más caro que los proveedores, y te llega la factura correspondiente — igual que cuando se agota el gasoil.\\n\\n🚫 Si el depósito de AdBlue está a 0%, no podrás despachar ese camión hasta repostarlo."],
             ["11b. ⚠️ Cancelar un renting antes de tiempo", "Si cancelas el contrato de renting de una tractora o un remolque ANTES de la fecha máxima del contrato, pagarás una sanción de 15.000 € por cada vehículo (15.000 € por tractora y 15.000 € por remolque).\\n\\n· La sanción se paga AL MOMENTO al cancelar, junto con el mes final.\\n· Solo podrás cancelar si tienes saldo suficiente para no quedar en números negativos.\\n· Antes de confirmar verás un mensaje con el desglose (mes final + sanción), tu saldo actual y el saldo que te quedaría, para que decidas.\\n· Si el contrato ya ha llegado a su fecha de fin, no hay sanción."],
             ["12. Ruleta de la suerte", "Cada 24h puedes girar la ruleta. Hay premios temporales y contratos especiales.\n\nContrato 8 €/km: entra automáticamente en Pedidos aceptados con el icono de la ruleta. Es un viaje especial de máximo 200 km. Si no lo cargas a tiempo desaparece sin coste.\n\nContrato 2 viajes a 6 €/km: entran automáticamente 2 viajes al mismo destino y con carga en el puerto habitual, máximo 1.000 km. Tienes 5 días para servirlos. Si no completas todos a tiempo, los pedidos no servidos se cancelan y eliminan sin coste. Si sirves los dos, recibes una bonificación de 500 €.\n\nEl icono de ruleta en Aceptados sirve para distinguir estos contratos de los pedidos normales."],
             ["12b. 🎰 Casino", "El casino se desbloquea en el nivel 3 y tiene dos juegos de azar:\n\n🎰 TRAGAPERRAS:\n· Coste: 100€ por tirada · Máximo 50 tiradas cada 24h\n· 3 rodillos con 6 símbolos distintos. Consigue 3 iguales en la fila central para ganar.\n· Premios desde 500€ (🍒🍒🍒) hasta 30.000€ (7️⃣7️⃣7️⃣)\n· Puedes tirar una a una o hasta 50 de golpe (puedes parar antes)\n\n🎩 TRILERO:\n· Coste: 10€ por tirada · Premio: 50€ · Máximo 50 tiradas cada 24h\n· Tres tazas se mezclan delante de tus ojos. Adivina cuál esconde la bolita.\n· Cuidado: la animación es real pero la casa siempre tiene ventaja. A la larga, se pierde más de lo que se gana."],
@@ -1624,6 +1638,8 @@
                 truck.tankCapacity = (cat && cat.tank) ? cat.tank : 600;
             }
             if (typeof truck.fuel !== "number") truck.fuel = truck.tankCapacity || truck.tank || 0;
+            if (typeof truck.adblueCapacity !== "number" || truck.adblueCapacity < 20) truck.adblueCapacity = ADBLUE_TRUCK_TANK_L;
+            if (typeof truck.adblue !== "number") truck.adblue = truck.adblueCapacity; // full tank as a starting grace for existing trucks
             scheduleItvEvent(truck);
         }
         function ensureCisternRealism(cistern, now = Date.now()) {
@@ -2181,6 +2197,8 @@
             if (!state.weather) state.weather = createWeather(Date.now());
             if (!Array.isArray(state.fuelQuotes)) state.fuelQuotes = [];
             if (typeof state.fuelQuotesUpdatedAt !== "number") state.fuelQuotesUpdatedAt = 0;
+            if (!Array.isArray(state.adblueQuotes)) state.adblueQuotes = [];
+            if (typeof state.adblueQuotesUpdatedAt !== "number") state.adblueQuotesUpdatedAt = 0;
             if (typeof state.taxableRevenueMonth !== "number") state.taxableRevenueMonth = 0;
             if (typeof state.dailyOrderSequence !== "number") state.dailyOrderSequence = 0;
             if (typeof state.dailyDuoOrdersTarget !== "number") state.dailyDuoOrdersTarget = 0;
@@ -2304,6 +2322,20 @@
                 }
             }
             // Fix v3: if tractora km doesn't match its own tire km (because of the halving migration), restore from tireKm
+            if (!state._adblueInitV1) {
+                state._adblueInitV1 = true;
+                if (state.warehouse) {
+                    // Proportional to how far this player has already progressed their warehouse (their current
+                    // diesel tank size vs the 50.000 L base), so a player who already expanded several times
+                    // doesn't start the AdBlue tank at the tiny base size.
+                    const progressRatio = Math.max(1, (state.warehouse.tankCapacity || 50000) / 50000);
+                    const cap = Math.round(ADBLUE_BASE_TANK_L * progressRatio / 100) * 100; // round to nearest 100L
+                    state.warehouse.tankAdblueCapacity = cap;
+                    state.warehouse.tankAdblue = cap; // full tank as a starting grace
+                    const primary = (state.bases || []).find(b => b.id === state.warehouse.id);
+                    if (primary) { primary.tankAdblueCapacity = cap; primary.tankAdblue = cap; }
+                }
+            }
             if (!state._kmMigrationV3) {
                 state.fleet?.forEach(truck => {
                     if ((truck.tireKm || 0) > (truck.km || 0)) {
@@ -2669,7 +2701,7 @@
         }
 
         function baseFromWarehouse(warehouse) {
-            return { id: warehouse.id, name: warehouse.name || "Base ECACH", lat: warehouse.lat, lng: warehouse.lng, address: warehouse.address, truckSlots: warehouse.truckSlots, cisternSlots: warehouse.cisternSlots, tankCapacity: warehouse.tankCapacity, tankFuel: warehouse.tankFuel || 0, rentMonthly: warehouse.rentMonthly || 0 };
+            return { id: warehouse.id, name: warehouse.name || "Base ECACH", lat: warehouse.lat, lng: warehouse.lng, address: warehouse.address, truckSlots: warehouse.truckSlots, cisternSlots: warehouse.cisternSlots, tankCapacity: warehouse.tankCapacity, tankFuel: warehouse.tankFuel || 0, tankAdblueCapacity: warehouse.tankAdblueCapacity || ADBLUE_BASE_TANK_L, tankAdblue: warehouse.tankAdblue || 0, rentMonthly: warehouse.rentMonthly || 0 };
         }
 
         function getBaseById(id) {
@@ -3475,8 +3507,10 @@
                 ownership: "rent", rentMonthly: catalog.rent,
                 truckSlots: catalog.trucks, cisternSlots: catalog.cisterns,
                 tankCapacity: catalog.tank, tankFuel: 5000, expansions: 0,
+                tankAdblueCapacity: Math.round(ADBLUE_BASE_TANK_L * (catalog.tank / 50000)), tankAdblue: Math.round(ADBLUE_BASE_TANK_L * (catalog.tank / 50000)),
                 createdAt: now
             };
+            state._adblueInitV1 = true; // freshly created with correct AdBlue tank already, skip the migration
             state.bases = [baseFromWarehouse(state.warehouse)];
             state.nextMonthlyTs = nextFixedChargeTs(now);
             state.firstFixedBillDone = false;
@@ -3521,7 +3555,7 @@
             // Tires: new trucks start at 0. Used trucks (usedKm) get tires worn within their current
             // 100.000 km tire cycle, so a 250.000 km truck arrives with tires at 50.000 km of wear.
             const startTireKm = item.usedKm ? (item.usedKm % TIRE_CRITICAL_KM) : 0;
-            const truck = { id: uid("truck"), brand: item.brand, model: item.model, plate: randomPlate("ES"), acquisition: mode, purchasePrice: mode === "buy" ? item.price : 0, rentMonthly: mode === "rent" ? item.rent : 0, insuranceMonthly: TRUCK_MONTHLY_INSURANCE, rentEnd: mode === "rent" ? addMonths(now, 60) : null, quotasPaid: 0, quotasRemaining: mode === "rent" ? 60 : 0, consumption: item.consumption, tankCapacity: item.tank, fuel: item.tank, wear: item.initialWear || 0, km: item.usedKm || 0, tireKm: startTireKm, ageMonths: item.ageMonths || (item.usedKm ? rand(36, 96) : 0), nextItv: addMonths(now, 6), maintenanceHours: item.maintenanceHours, status: "Base", location: base?.name || "Nave", baseId: base?.id || baseId, incidents: [], docsOk: true, adrDocsOk: true, duoTrailer: !!item.duoTrailer, trailerCapacity: item.trailerCapacity || 0, highKmRisk: !!item.highKmRisk, maxSpeed: item.maxSpeed || 80, breakdownImmuneKm: item.breakdownImmuneKm || 0, createdAt: now };
+            const truck = { id: uid("truck"), brand: item.brand, model: item.model, plate: randomPlate("ES"), acquisition: mode, purchasePrice: mode === "buy" ? item.price : 0, rentMonthly: mode === "rent" ? item.rent : 0, insuranceMonthly: TRUCK_MONTHLY_INSURANCE, rentEnd: mode === "rent" ? addMonths(now, 60) : null, quotasPaid: 0, quotasRemaining: mode === "rent" ? 60 : 0, consumption: item.consumption, tankCapacity: item.tank, fuel: item.tank, adblueCapacity: ADBLUE_TRUCK_TANK_L, adblue: ADBLUE_TRUCK_TANK_L, wear: item.initialWear || 0, km: item.usedKm || 0, tireKm: startTireKm, ageMonths: item.ageMonths || (item.usedKm ? rand(36, 96) : 0), nextItv: addMonths(now, 6), maintenanceHours: item.maintenanceHours, status: "Base", location: base?.name || "Nave", baseId: base?.id || baseId, incidents: [], docsOk: true, adrDocsOk: true, duoTrailer: !!item.duoTrailer, trailerCapacity: item.trailerCapacity || 0, highKmRisk: !!item.highKmRisk, maxSpeed: item.maxSpeed || 80, breakdownImmuneKm: item.breakdownImmuneKm || 0, createdAt: now };
             ensureTruckRealism(truck, now);
             state.fleet.push(truck);
             if (!starter) {
@@ -4239,6 +4273,7 @@
             if (order.liters > STANDARD_ORDER_LITERS && !truck.duoTrailer) return notify("Duo trailer obligatorio", "Los pedidos de 64.000 L requieren una tractora Sbcania Duo Trailer y un remolque duo de 64.000 L.", "danger", true);
             // Block dispatch if vehicle wear at 100%
             if ((truck.wear || 0) >= 100) return notify("Tractora con desgaste 100%", `${truck.plate}: desgaste al máximo. Debes hacerle la revisión antes de salir de ruta.`, "danger", true);
+            if ((truck.adblue || 0) <= 0) return notify("Sin AdBlue", `${truck.plate}: el depósito de AdBlue está vacío. Repostálo en la nave antes de salir de ruta.`, "danger", true);
             if ((cistern.wear || 0) >= 100) return notify("Cisterna con desgaste 100%", `${cistern.plate}: desgaste al máximo. Debes hacerle la revisión antes de salir de ruta.`, "danger", true);
             // Confirmation before dispatch
             const driversSummary = driver2 ? `${driver1.first} ${driver1.last} + ${driver2.first} ${driver2.last} (conducción en equipo)` : `${driver1.first} ${driver1.last}`;
@@ -4366,6 +4401,11 @@
                 truck.fuel += liters; base.tankFuel -= liters;
                 if (state.warehouse?.id === base.id) state.warehouse.tankFuel = base.tankFuel;
                 if (liters > 0) addEmail("deposito@ecachlogistic.eu", `Repostaje automático ${truck.plate}`, `Se repostan ${fmtLiters(liters)} desde el depósito de ${base.name || "la base"}.`, "fuel");
+            }
+            if (state.settings.autoRefuel && base && (truck.adblue || 0) < (truck.adblueCapacity || ADBLUE_TRUCK_TANK_L)) {
+                const adblueLiters = Math.min((truck.adblueCapacity || ADBLUE_TRUCK_TANK_L) - (truck.adblue || 0), base.tankAdblue || 0);
+                truck.adblue = (truck.adblue || 0) + adblueLiters; base.tankAdblue -= adblueLiters;
+                if (state.warehouse?.id === base.id) state.warehouse.tankAdblue = base.tankAdblue;
             }
             // NOTE: we intentionally do NOT charge a route refuel here for the trip's fuel deficit. The truck
             // leaves with whatever it has; only if it runs the tank down to ZERO mid-route does the in-route
@@ -4698,6 +4738,26 @@
                         `Uno de tus camiones se ha quedado sin gasoil en ruta y ha repostado en una gasolinera del trayecto, llenando el depósito completo.\n\n🚛 Camión: ${trip.truckPlate}\n👤 Conductor: ${driverName}\n🔢 Repostaje nº ${trip.routeRefuelCount} de este viaje\n⛽ Litros repostados (depósito lleno): ${fmtLiters(fill)}\n💰 Precio: ${price.toFixed(2)} €/L\n💵 Importe total de la factura: ${fmtMoney(totalCost)}\n\n📋 Cálculo: ${fmtLiters(fill)} × ${price.toFixed(2)} €/L = ${fmtMoney(totalCost)}\n\n⚠️ Repostar en ruta es bastante más caro que repostar en el depósito de tu propia nave. Te conviene salir siempre con el depósito lleno desde tu base para ahorrar.`,
                         "fuel");
                     notify("Repostaje en ruta", `${trip.truckPlate}: depósito lleno, ${fmtLiters(fill)} × ${price.toFixed(2)} €/L = ${fmtMoney(totalCost)}.`, "warn", true);
+                }
+                // AdBlue: consumed proportionally to diesel (ADBLUE_CONSUMPTION_RATIO), same "runs dry mid-route,
+                // refill in full at a marked-up price" pattern as diesel.
+                const adblueLiters = liters * ADBLUE_CONSUMPTION_RATIO;
+                truck.adblue = Math.max(0, (truck.adblue || 0) - adblueLiters);
+                if (truck.adblue <= 1) {
+                    let adblueCap = truck.adblueCapacity;
+                    if (!Number.isFinite(adblueCap) || adblueCap < 20) adblueCap = ADBLUE_TRUCK_TANK_L;
+                    const adblueFill = Math.max(0, Math.round((adblueCap - truck.adblue) * 10) / 10);
+                    truck.adblue = adblueCap;
+                    trip.routeAdblueRefuelCount = (trip.routeAdblueRefuelCount || 0) + 1;
+                    const adbluePrice = currentRouteAdbluePrice();
+                    const adblueTotalCost = Math.round(adblueFill * adbluePrice * 100) / 100;
+                    const driver = state.workers.find(w => w.id === (trip.driverIds && trip.driverIds[0]));
+                    const driverName = driver ? `${driver.first} ${driver.last}` : (trip.driverNames && trip.driverNames[0]) || "Conductor";
+                    addReceivedInvoice("Gasolinera de ruta", adblueTotalCost, now + 30 * MS_DAY, "Repostaje AdBlue en ruta", `${trip.truckPlate}: depósito AdBlue lleno (${fmtLiters(adblueFill)}) a ${adbluePrice.toFixed(2)} EUR/L`);
+                    addEmail("gasolinera@ruta.eu", `Repostaje AdBlue en ruta · ${trip.truckPlate} (#${trip.routeAdblueRefuelCount})`,
+                        `Uno de tus camiones se ha quedado sin AdBlue en ruta y ha repostado en una gasolinera del trayecto, llenando el depósito completo.\n\n🚛 Camión: ${trip.truckPlate}\n👤 Conductor: ${driverName}\n🔢 Repostaje nº ${trip.routeAdblueRefuelCount} de este viaje\n🧪 Litros repostados (depósito lleno): ${fmtLiters(adblueFill)}\n💰 Precio: ${adbluePrice.toFixed(2)} €/L\n💵 Importe total de la factura: ${fmtMoney(adblueTotalCost)}\n\n⚠️ Repostar AdBlue en ruta es más caro que hacerlo en el depósito de tu propia nave.`,
+                        "fuel");
+                    notify("Repostaje AdBlue en ruta", `${trip.truckPlate}: depósito AdBlue lleno, ${fmtLiters(adblueFill)} × ${adbluePrice.toFixed(2)} €/L = ${fmtMoney(adblueTotalCost)}.`, "warn", true);
                 }
             }
             if (cistern) registerKmMaintenance(cistern, deltaKm, cistern.capacity > 32000 ? 12 : 6, "Cisterna");
@@ -5052,6 +5112,8 @@
             if (!state.settings.autoRefuel || !base) return;
             const liters = Math.min(truck.tankCapacity - truck.fuel, base.tankFuel || 0);
             if (liters > 0) { truck.fuel += liters; base.tankFuel -= liters; if (state.warehouse?.id === base.id) state.warehouse.tankFuel = base.tankFuel; }
+            const adblueLiters = Math.min((truck.adblueCapacity || ADBLUE_TRUCK_TANK_L) - (truck.adblue || 0), base.tankAdblue || 0);
+            if (adblueLiters > 0) { truck.adblue = (truck.adblue || 0) + adblueLiters; base.tankAdblue -= adblueLiters; if (state.warehouse?.id === base.id) state.warehouse.tankAdblue = base.tankAdblue; }
         }
 
         // Fetch the GLOBAL daily fuel prices from the backend (same for all players).
@@ -5129,6 +5191,40 @@
                 base.push({ id: "fuel-lowcost", name: "LowCost ⛽", price: lowCostPrice, etaHours: rand(10, 18), lowCost: true });
             }
             return base;
+        }
+
+        // --- AdBlue providers: same deterministic-per-day approach as the diesel fallback, but purely
+        // client-side (no server round-trip) — still identical for every player on a given day since the
+        // seed is based only on the date, not on anything player-specific.
+        function ensureAdblueQuotes(now = Date.now()) {
+            const day = dateKey(new Date(now));
+            if (state.adblueQuotes?.length && state.adblueQuoteDay === day) return;
+            const dn = clientDayNumber(now);
+            const r1 = seededRandClient(dn * 5 + 101);
+            const r2 = seededRandClient(dn * 5 + 102);
+            const r3 = seededRandClient(dn * 5 + 103);
+            const rangeInt = (rnd, min, max) => Math.floor(rnd * (max - min + 1)) + min;
+            const fastPrice = rangeInt(r1, 48, 55) / 100;
+            const slowPrice = Math.min(fastPrice - 0.05, rangeInt(r2, 35, 42) / 100);
+            const midPrice = Math.round(((fastPrice + slowPrice) / 2 + rangeInt(r3, -2, 2) / 100) * 100) / 100;
+            state.adblueQuoteDay = day;
+            state.adblueQuotesUpdatedAt = now;
+            state.adblueQuotes = [
+                { id: "adblue-fast", name: "UreaExpress Terminal", price: fastPrice, etaHours: rangeInt(r1, 1, 4) },
+                { id: "adblue-mid", name: "NordBlue Supply", price: midPrice, etaHours: rangeInt(r2, 6, 10) },
+                { id: "adblue-slow", name: "EuroDEF Bulk", price: slowPrice, etaHours: rangeInt(r3, 16, 24) }
+            ];
+        }
+        function currentAdblueProviders() {
+            if (!state.adblueQuotes?.length) ensureAdblueQuotes(Date.now());
+            const day = dateKey(new Date());
+            if (state.adblueQuoteDay !== day) ensureAdblueQuotes(Date.now());
+            return state.adblueQuotes && state.adblueQuotes.length ? state.adblueQuotes.slice() : adblueProviders.slice();
+        }
+        function currentRouteAdbluePrice() {
+            const prices = currentAdblueProviders().map(p => Number(p.price)).filter(Number.isFinite);
+            const base = prices.length ? Math.max(...prices) : AVG_ADBLUE_PRICE;
+            return Math.round(base * ADBLUE_ROUTE_MARKUP * 100) / 100;
         }
 
         // Surprise weekly bulk fuel offer: one random weekday per ISO week, buying 64.000 L+ gets the
@@ -5431,7 +5527,7 @@
             trip.delayMs += delayMs; trip.endTs += delayMs;
             if (!Array.isArray(trip.pauses)) trip.pauses = [];
             if (delayMs > 0) trip.pauses.push({ startTs: now, durationMs: delayMs, label: title });
-            if (extraKm && truck) { const extraFuel = extraKm * truck.consumption / 100; prepareFuelForTrip(truck, extraFuel); truck.fuel = Math.max(0, truck.fuel - extraFuel); trip.fuelLiters += extraFuel; trip.kmRound += extraKm; }
+            if (extraKm && truck) { const extraFuel = extraKm * truck.consumption / 100; prepareFuelForTrip(truck, extraFuel); truck.fuel = Math.max(0, truck.fuel - extraFuel); truck.adblue = Math.max(0, (truck.adblue || 0) - extraFuel * ADBLUE_CONSUMPTION_RATIO); trip.fuelLiters += extraFuel; trip.kmRound += extraKm; }
             if (cost && type !== "driver-breakdown") {
                 addReceivedInvoice("Incidencia en ruta", cost, now + rand(2, 24) * MS_HOUR, title, message);
                 logTruckExpense(trip.truckPlate, `Incidencia: ${title}`, cost, "incident");
@@ -5899,6 +5995,7 @@
                 processedIds.add(event.id);
                 if (event.type === "fuel-delivery") { const space = state.warehouse.tankCapacity - state.warehouse.tankFuel; const delivered = Math.min(space, event.liters); state.warehouse.tankFuel += delivered; notify("Combustible entregado", `${event.provider} ha entregado ${fmtLiters(delivered)} en tu depósito.`, "ok", true); }
                 if (event.type === "fuel-unload-complete") { const space = state.warehouse.tankCapacity - state.warehouse.tankFuel; const delivered = Math.min(space, event.liters); state.warehouse.tankFuel += delivered; notify("Combustible entregado", `${event.provider} descarga ${fmtLiters(delivered)} en la nave.`, "ok"); }
+                if (event.type === "adblue-delivery") { const space = (state.warehouse.tankAdblueCapacity || ADBLUE_BASE_TANK_L) - (state.warehouse.tankAdblue || 0); const delivered = Math.min(space, event.liters); state.warehouse.tankAdblue = (state.warehouse.tankAdblue || 0) + delivered; notify("AdBlue entregado", `${event.provider} ha entregado ${fmtLiters(delivered)} de AdBlue en tu depósito.`, "ok", true); }
                 if (event.type === "truck-delivery") {
                     const truck = addTruckFromCatalog(event.item, event.mode, now, true, event.baseId);
                     if (truck) notify("🚛 Camión entregado", `${truck.brand} ${truck.model} (${truck.plate}) ya está en ${getBaseById(event.baseId)?.name || "la base"}.`, "ok", true);
@@ -6531,6 +6628,7 @@
         function checkWarnings(now) {
             if (!state.initialized) return;
             if (state.warehouse && state.warehouse.tankFuel < 4000) warnOnce("tank-low", "Depósito bajo", "Quedan menos de 4.000 L en el depósito. Compra gasoil con tiempo porque el proveedor tardará unas horas.", "warn");
+            if (state.warehouse && (state.warehouse.tankAdblue || 0) < (state.warehouse.tankAdblueCapacity || ADBLUE_BASE_TANK_L) * ADBLUE_LOW_STOCK_RATIO) warnOnce("adblue-tank-low", "AdBlue bajo", "Queda poco AdBlue en el depósito de la nave. Compra con tiempo porque el proveedor tardará unas horas.", "warn");
             state.fleet.forEach(truck => {
                 if (truck.wear > 55) warnOnce(`wear-${truck.id}`, "Desgaste crítico", `${truck.plate} supera el 55% de desgaste.`, "danger");
                 if (truck.nextItv - now < 7 * MS_DAY) warnOnce(`itv-${truck.id}`, "ITV próxima", `${truck.plate} tiene ITV en menos de 7 días.`, "warn");
@@ -6924,7 +7022,7 @@
             const selD2 = picks.driver2;
             // Duo trailer order: only show Duo trucks, Duo cisterns (>=64000L) and drivers with Duo license
             const isDuoOrder = order.liters > STANDARD_ORDER_LITERS;
-            const truckOptions = state.fleet.filter(t => t.status === "Base" && sameBase(t) && (isDuoOrder ? t.duoTrailer : !t.duoTrailer)).map(t => `<option value="${t.id}" ${(selTruck ? selTruck === t.id : fixedTeam?.truckId === t.id) ? "selected" : ""}>${t.plate} · ${t.brand} ${t.model} · ${t.consumption}L/100 · ${fmtLiters(t.fuel)}</option>`).join("");
+            const truckOptions = state.fleet.filter(t => t.status === "Base" && sameBase(t) && (isDuoOrder ? t.duoTrailer : !t.duoTrailer)).map(t => `<option value="${t.id}" ${(selTruck ? selTruck === t.id : fixedTeam?.truckId === t.id) ? "selected" : ""}>${t.plate} · ${t.brand} ${t.model} · ${t.consumption}L/100 · ${fmtLiters(t.fuel)} · AdBlue ${Math.round((t.adblue || 0) / (t.adblueCapacity || ADBLUE_TRUCK_TANK_L) * 100)}%</option>`).join("");
             const isAirport = !!order.airportContract;
             const cisternOptions = state.cisterns.filter(c => c.status === "Base" && sameBase(c) && (isAirport ? c.jetA1 : (!c.jetA1 && (isDuoOrder ? c.capacity >= 64000 : c.capacity < 64000)))).map(c => `<option value="${c.id}" ${(selCistern ? selCistern === c.id : fixedTeam?.cisternId === c.id) ? "selected" : ""}>${c.plate} · ${c.brand} · ${fmtLiters(c.capacity)}</option>`).join("");
             const driverOptions = state.workers.filter(w => w.role === "Conductor" && w.status === "Disponible" && w.adr && sameBase(w) && !w.restLocked && (isAirport ? w.jetA1License : true) && (isDuoOrder ? w.duoLicense : true)).map(d => { const restRef = d.restStartTs || d.lastRestEndTs || d.hiredAt; const restMs = restRef ? Math.max(0, Date.now() - restRef) : 0; const restH = Math.floor(restMs / 3600000); const restMin = Math.floor((restMs % 3600000) / 60000); const restStr = (_showDriverRest && restMs > 0) ? ` · 💤 ${restH}h ${restMin}min desc.` : ""; return `<option value="${d.id}" ${(selD1 ? selD1 === d.id : fixedTeam?.driver1Id === d.id) ? "selected" : ""}>${d.first} ${d.last} · hoy ${fmtDrivingHours(d.drivingToday)}${d.jetA1License ? " · Jet A-1 ✓" : ""}${d.duoLicense ? " · Duo ✓" : ""}${restStr}</option>`; }).join("");
@@ -6995,6 +7093,8 @@
             })() : "";
             const truckRows = state.fleet.map(t => {
                 const fuelPct = t.fuel / t.tankCapacity * 100;
+                const adbluePct = Math.round((t.adblue || 0) / (t.adblueCapacity || ADBLUE_TRUCK_TANK_L) * 100);
+                const adblueColor = adbluePct < 15 ? "#ff3b30" : adbluePct < 40 ? "#e8a504" : "#35c759";
                 const baseAction = t.acquisition === "rent" ? `<button class="danger small" data-action="finalize-renting" data-kind="truck" data-id="${t.id}" ${t.status !== "Base" ? "disabled" : ""}>Finalizar renting</button>` : `<button class="small" data-action="sell-vehicle" data-kind="truck" data-id="${t.id}" ${t.status !== "Base" ? "disabled" : ""}>Vender ${fmtMoney(resaleValue(t))}</button>`;
                 const tireKm = t.tireKm || 0;
                 const tirePct = Math.min(100, (tireKm / TIRE_CRITICAL_KM) * 100);
@@ -7003,7 +7103,7 @@
                 const itvDue = t.nextItv && t.nextItv <= Date.now();
                 const itvBtn = (t.itvPending || itvDue) ? `<button class="primary small" data-action="pass-itv" data-id="${t.id}" data-kind="truck">Pasar ITV (100 €)</button>` : "";
                 const reviewBtn = `<button class="small" data-action="maintain-truck" data-id="${t.id}" ${t.status !== "Base" ? "disabled" : ""}>Revisión ${t.maintenanceHours}h</button>`;
-                return `<tr><td><strong>${t.plate}</strong><br>${t.brand} ${t.model}<br><span class="muted">Km acumulados: ${fmtNum(t.km || 0)}</span></td><td>${t.acquisition === "rent" ? `Renting ${fmtMoney(t.rentMonthly)}/mes` : "Propiedad"}<br><span class="muted">Seguro: ${fmtMoney(t.insuranceMonthly || TRUCK_MONTHLY_INSURANCE)}/mes · Fin renting: ${t.rentEnd ? fmtDate(t.rentEnd) : "-"}</span></td><td>${t.consumption} L/100km<br>Depósito ${fmtLiters(t.tankCapacity)}</td><td><div class="progress"><div class="bar ${fuelPct < 20 ? "danger" : fuelPct < 45 ? "warn" : "ok"}" style="width:${fuelPct}%"></div></div>${fmtLiters(t.fuel)}</td><td><div class="progress"><div class="bar ${t.wear > 55 ? "danger" : t.wear > 35 ? "warn" : "ok"}" style="width:${t.wear}%"></div></div>${t.wear.toFixed(1)}%</td><td>${tireBar}</td><td>${fmtDate(t.nextItv)}${t.itvPending ? '<br><span class="badge danger">Pendiente</span>' : ""}</td><td>${t.status === "Mantenimiento" ? `<span style="color:#ff8c1a;font-weight:700">🔧 En mantenimiento</span>${t.maintenanceEndTs ? `<br><span style="color:#ff8c1a;font-size:11px">Termina: ${fmtDate(t.maintenanceEndTs)}</span>` : ""}` : t.status}<br><span class="muted">${t.location || ""}</span></td><td>${reviewBtn}${tireBtn}${itvBtn}${baseAction}</td></tr>`;
+                return `<tr><td><strong>${t.plate}</strong><br>${t.brand} ${t.model}<br><span class="muted">Km acumulados: ${fmtNum(t.km || 0)}</span></td><td>${t.acquisition === "rent" ? `Renting ${fmtMoney(t.rentMonthly)}/mes` : "Propiedad"}<br><span class="muted">Seguro: ${fmtMoney(t.insuranceMonthly || TRUCK_MONTHLY_INSURANCE)}/mes · Fin renting: ${t.rentEnd ? fmtDate(t.rentEnd) : "-"}</span></td><td>${t.consumption} L/100km<br>Depósito ${fmtLiters(t.tankCapacity)}</td><td><div class="progress"><div class="bar ${fuelPct < 20 ? "danger" : fuelPct < 45 ? "warn" : "ok"}" style="width:${fuelPct}%"></div></div>${fmtLiters(t.fuel)}<br><span style="font-size:11px;color:${adblueColor}" title="AdBlue restante">🧪 AdBlue ${adbluePct}%</span></td><td><div class="progress"><div class="bar ${t.wear > 55 ? "danger" : t.wear > 35 ? "warn" : "ok"}" style="width:${t.wear}%"></div></div>${t.wear.toFixed(1)}%</td><td>${tireBar}</td><td>${fmtDate(t.nextItv)}${t.itvPending ? '<br><span class="badge danger">Pendiente</span>' : ""}</td><td>${t.status === "Mantenimiento" ? `<span style="color:#ff8c1a;font-weight:700">🔧 En mantenimiento</span>${t.maintenanceEndTs ? `<br><span style="color:#ff8c1a;font-size:11px">Termina: ${fmtDate(t.maintenanceEndTs)}</span>` : ""}` : t.status}<br><span class="muted">${t.location || ""}</span></td><td>${reviewBtn}${tireBtn}${itvBtn}${baseAction}</td></tr>`;
             }).join("");
             const cisternRows = state.cisterns.map(c => {
                 const baseAction = c.acquisition === "rent" ? `<button class="danger small" data-action="finalize-renting" data-kind="cistern" data-id="${c.id}" ${c.status !== "Base" ? "disabled" : ""}>Finalizar renting</button>` : `<button class="small" data-action="sell-vehicle" data-kind="cistern" data-id="${c.id}" ${c.status !== "Base" ? "disabled" : ""}>Vender ${fmtMoney(resaleValue(c))}</button>`;
@@ -7450,6 +7550,13 @@
             const adminRec = Math.max(1, Math.ceil(state.fleet.length / 4));
             $("warehouseContent").innerHTML = `<div class="card" style="border-color:rgba(232,93,4,.45);background:rgba(232,93,4,.06)"><h3>🏢 Información de empresa</h3><p><span class="label">Empresa</span><strong>${companyName}</strong></p><p><span class="label">Dirección base</span>${wh.address || coordsText}</p><p><span class="label">Coordenadas exactas</span><span class="mono">${coordsText}</span></p><p><span class="label">Nave</span>${wh.name} · ${wh.ownership === "rent" ? "Alquiler" : "Propiedad"} · ${fmtMoney(wh.rentMonthly || 0)}/mes</p><p><span class="label">Personal recomendado</span>≥${mechRec} mecánico${mechRec !== 1 ? "s" : ""} (1 por cada 3 vehículos) · ≥${adminRec} administrativo${adminRec !== 1 ? "s" : ""} (1 por cada 4 camiones)</p></div><div class="metrics">${metricHtml("Plazas tractoras", `${truckOcc}/${wh.truckSlots}`, "🚛")}${metricHtml("Plazas cisternas", `${cisternOcc}/${wh.cisternSlots}`, "🛢️")}${metricHtml("Depósito", `${fmtLiters(wh.tankFuel)} / ${fmtLiters(wh.tankCapacity)}`, "⛽")}</div><div class="card"><h3>Nivel del depósito</h3><div class="progress"><div class="bar ${tankPct < 20 ? "danger" : tankPct < 45 ? "warn" : "ok"}" style="width:${tankPct}%"></div></div><p>${tankPct.toFixed(1)}% · Repostaje automático: <span class="badge ${state.settings.autoRefuel ? "ok" : "warn"}">${state.settings.autoRefuel ? "Activado" : "Desactivado"}</span></p><p>${pendingFuel || "Sin pedidos de gasoil pendientes."}</p><button data-action="toggle-autorefuel">Cambiar repostaje automático</button></div><div class="card"><h3>Camiones dentro</h3><p>${trucksInBase || "No hay camiones en base."}</p></div><h3>Proveedores de combustible</h3>${fuelDiscountBanner}${bulkBanner}<div class="cards">${providers}</div><div class="card"><h3>Ampliaciones</h3><p>+5 plazas camión, +5 plazas cisterna y +50.000L de depósito. Coste: ${fmtMoney(20000)} (se cobra al momento) y el alquiler mensual aumenta ${fmtMoney(5000)} (primera cuota 1 mes después).</p><div class="row"><button class="primary" data-action="upgrade-warehouse" data-mode="rent">Ampliar nave (${fmtMoney(20000)})</button></div></div>${fuelHistoryCard}`;
             $("warehouseContent").insertAdjacentHTML("beforeend", `<div class="card"><h3>Aviso precio gasoil autoconsumo</h3><p class="muted">El precio del gasoil va cambiando según el mercado real. Se mantiene la norma: más caro cuanto antes llega el proveedor y más barato cuando la entrega tarda más.</p></div>`);
+            // --- AdBlue tank + providers (mirrors the diesel section above, smaller scale) ---
+            const adblueCap = wh.tankAdblueCapacity || ADBLUE_BASE_TANK_L;
+            const adblueTank = wh.tankAdblue || 0;
+            const adbluTankPct = adblueCap ? (adblueTank / adblueCap * 100) : 0;
+            const adblueProviders = currentAdblueProviders().map(p => `<article class="card"><h3>🧪 ${p.name}</h3><p>Precio: <span class="mono orange">${p.price.toFixed(2)} €/L</span></p><p>Entrega aprox.: ${fmtDurationHours(p.etaHours)} · Precio actualizado cada 24h</p><div class="row"><button data-action="order-adblue" data-provider="${p.id}" data-liters="500">500L</button><button data-action="order-adblue" data-provider="${p.id}" data-liters="1000">1.000L</button><button data-action="order-adblue-custom" data-provider="${p.id}">Litros...</button></div></article>`).join("");
+            const pendingAdblue = state.futureEvents.filter(e => e.type === "adblue-delivery").map(e => `<span class="badge warn">${e.provider}: ${fmtLiters(e.liters)} · llega ${fmtDate(e.ts)}</span>`).join(" ");
+            $("warehouseContent").insertAdjacentHTML("beforeend", `<div class="card"><h3>🧪 Depósito de AdBlue</h3><div class="progress"><div class="bar ${adbluTankPct < ADBLUE_LOW_STOCK_RATIO * 100 ? "danger" : adbluTankPct < ADBLUE_LOW_STOCK_RATIO * 200 ? "warn" : "ok"}" style="width:${adbluTankPct}%"></div></div><p>${fmtLiters(adblueTank)} / ${fmtLiters(adblueCap)} · ${adbluTankPct.toFixed(1)}%</p><p>${pendingAdblue || "Sin pedidos de AdBlue pendientes."}</p></div><h3>Proveedores de AdBlue</h3><div class="cards">${adblueProviders}</div>`);
             const offices = (state.commercialOffices || []).map(o => {
                 const moveBtn = o.moved
                     ? (!state.flags?.officeCourtesyMoveUsed
@@ -10459,6 +10566,27 @@
             renderAll(); saveGame(true);
         }
 
+        function buyAdblue(providerId, liters) {
+            if (!state.warehouse) return;
+            if (liters < 500) return notify("Pedido mínimo", "El pedido mínimo de AdBlue es 500L.", "warn", true);
+            const provider = currentAdblueProviders().find(p => p.id === providerId);
+            if (!provider) return notify("Proveedor no disponible", "Actualiza la lista de proveedores.", "warn", true);
+            const reserved = state.futureEvents.filter(e => e.type === "adblue-delivery").reduce((sum, e) => sum + (e.liters || 0), 0);
+            const cap = state.warehouse.tankAdblueCapacity || ADBLUE_BASE_TANK_L;
+            const space = cap - (state.warehouse.tankAdblue || 0) - reserved;
+            if (space <= 0) return notify("Depósito lleno", "No tienes espacio para más AdBlue.", "warn", true);
+            if (liters > space) return notify("Pedido demasiado grande", `Solo caben ${fmtLiters(space)} contando pedidos pendientes.`, "warn", true);
+            const cost = Math.round(liters * provider.price * 100) / 100;
+            if (state.bank.balance < cost) return notify("Saldo insuficiente", `El pedido cuesta ${fmtMoney(cost)} y se paga al momento.`, "danger", true);
+            const etaTs = Date.now() + provider.etaHours * MS_HOUR;
+            if (!confirm(`¿Confirmar pedido de AdBlue?\n\n🧪 Proveedor: ${provider.name}\n📦 Cantidad: ${fmtLiters(liters)}\n💵 Coste total: ${fmtMoney(cost)}\n\n🚛 Entrega aprox.: ${fmtDate(etaTs)}\n\nEl pago se descontará del saldo inmediatamente.`)) return;
+            addMovement("expense", `Pago AdBlue · ${provider.name}`, -cost);
+            state.futureEvents.push({ id: uid("evt"), type: "adblue-delivery", provider: provider.name, liters, ts: etaTs });
+            addEmail(`${provider.id}@suministro.eu`, "Pago recibido y entrega programada", `Hemos recibido el pago de ${fmtMoney(cost)} por ${fmtLiters(liters)} de AdBlue. Nuestro camión llegará aproximadamente el ${fmtDate(etaTs)}.`, "fuel");
+            notify("Pedido de AdBlue pagado", `${provider.name} llegará en ${fmtDurationHours(provider.etaHours)}.`, "ok");
+            renderAll(); saveGame(true);
+        }
+
         // Clears the fuel purchase history every 2 months, counting from the 1st of the month.
         // Periods: Jan-Feb, Mar-Apr, May-Jun, Jul-Aug, Sep-Oct, Nov-Dec. When a new 2-month period starts,
         // the previous history is wiped (we keep entries only from the current period).
@@ -11179,9 +11307,9 @@
         function upgradeWarehouse(mode) {
             const UPGRADE_COST = 20000;
             if ((state.bank?.balance || 0) < UPGRADE_COST) return notify("Saldo insuficiente", `Ampliar la nave cuesta ${fmtMoney(UPGRADE_COST)} y no tienes saldo suficiente.`, "danger", true);
-            if (!confirm(`¿Confirmas ampliar la nave?\n\n+5 plazas tractora\n+5 plazas cisterna\n+50.000 L depósito\n\n💵 Coste: ${fmtMoney(UPGRADE_COST)} (se cobra ahora)\n📅 Además, el alquiler mensual aumentará ${fmtMoney(5000)} y se cobrará 1 mes después.`)) return;
-            addMovement("expense", "Ampliación de nave (+5 plazas, +50.000 L)", -UPGRADE_COST);
-            state.warehouse.truckSlots += 5; state.warehouse.cisternSlots += 5; state.warehouse.tankCapacity += 50000; state.warehouse.rentMonthly = (state.warehouse.rentMonthly || 0) + 5000; state.warehouse.expansions = (state.warehouse.expansions || 0) + 1;
+            if (!confirm(`¿Confirmas ampliar la nave?\n\n+5 plazas tractora\n+5 plazas cisterna\n+50.000 L depósito de gasoil\n+${fmtLiters(ADBLUE_TANK_PER_EXPANSION_L)} depósito de AdBlue\n\n💵 Coste: ${fmtMoney(UPGRADE_COST)} (se cobra ahora)\n📅 Además, el alquiler mensual aumentará ${fmtMoney(5000)} y se cobrará 1 mes después.`)) return;
+            addMovement("expense", "Ampliación de nave (+5 plazas, +50.000 L gasoil, +5.000 L AdBlue)", -UPGRADE_COST);
+            state.warehouse.truckSlots += 5; state.warehouse.cisternSlots += 5; state.warehouse.tankCapacity += 50000; state.warehouse.tankAdblueCapacity = (state.warehouse.tankAdblueCapacity || ADBLUE_BASE_TANK_L) + ADBLUE_TANK_PER_EXPANSION_L; state.warehouse.rentMonthly = (state.warehouse.rentMonthly || 0) + 5000; state.warehouse.expansions = (state.warehouse.expansions || 0) + 1;
             // Keep the bases array in sync: the primary base must reflect the expanded slots,
             // otherwise the per-base slot check uses the old (smaller) values and blocks purchases.
             if (Array.isArray(state.bases)) {
@@ -11190,10 +11318,11 @@
                     primary.truckSlots = (primary.truckSlots || 0) + 5;
                     primary.cisternSlots = (primary.cisternSlots || 0) + 5;
                     primary.tankCapacity = (primary.tankCapacity || 0) + 50000;
+                    primary.tankAdblueCapacity = (primary.tankAdblueCapacity || ADBLUE_BASE_TANK_L) + ADBLUE_TANK_PER_EXPANSION_L;
                     primary.rentMonthly = (primary.rentMonthly || 0) + 5000;
                 }
             }
-            addEmail("administracion@ecachlogistic.eu", "Ampliación de nave activada", `Se amplía la capacidad de la nave: +5 plazas de camión, +5 plazas de cisterna y +50.000 L de depósito. Coste: ${fmtMoney(UPGRADE_COST)} (cobrado al momento). El alquiler mensual aumenta ${fmtMoney(5000)} y se cobrará 1 mes después de la ampliación.`, "finance"); notify("Nave ampliada", `+5 plazas, +5 cisternas y +50.000L. Coste ${fmtMoney(UPGRADE_COST)} cobrado; +${fmtMoney(5000)}/mes de alquiler.`, "ok"); renderAll(); saveGame(true);
+            addEmail("administracion@ecachlogistic.eu", "Ampliación de nave activada", `Se amplía la capacidad de la nave: +5 plazas de camión, +5 plazas de cisterna, +50.000 L de depósito de gasoil y +${fmtLiters(ADBLUE_TANK_PER_EXPANSION_L)} de depósito de AdBlue. Coste: ${fmtMoney(UPGRADE_COST)} (cobrado al momento). El alquiler mensual aumenta ${fmtMoney(5000)} y se cobrará 1 mes después de la ampliación.`, "finance"); notify("Nave ampliada", `+5 plazas, +5 cisternas, +50.000L gasoil y +${fmtLiters(ADBLUE_TANK_PER_EXPANSION_L)} AdBlue. Coste ${fmtMoney(UPGRADE_COST)} cobrado; +${fmtMoney(5000)}/mes de alquiler.`, "ok"); renderAll(); saveGame(true);
         }
         function commercialOfficeLimit(level = state.level) { return Math.max(0, (level || 1) - 1); }
         // ---- Alliance gas stations (Phase 2: build flow) ----
@@ -12453,6 +12582,8 @@
             if (action === "toggle-autorefuel") { state.settings.autoRefuel = !state.settings.autoRefuel; renderWarehouse(); saveGame(true); }
             if (action === "order-fuel") buyFuel(btn.dataset.provider, Number(btn.dataset.liters));
             if (action === "order-fuel-custom") { const liters = Number(prompt("Litros a pedir, mínimo 5.000", "15000")); if (liters) buyFuel(btn.dataset.provider, liters); }
+            if (action === "order-adblue") buyAdblue(btn.dataset.provider, Number(btn.dataset.liters));
+            if (action === "order-adblue-custom") { const liters = Number(prompt("Litros de AdBlue a pedir, mínimo 500", "1000")); if (liters) buyAdblue(btn.dataset.provider, liters); }
             if (action === "hire") hireWorker(btn.dataset.role);
             if (action === "accept-cv") acceptCurriculum(id);
             if (action === "negotiate-cv") negotiateCurriculum(id);
