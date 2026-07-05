@@ -499,7 +499,7 @@
                     <div class="mhud" id="mobileGasLowHud" style="display:none;background:#ff3b30;color:#fff;cursor:pointer" title="Una gasolinera de la alianza tiene menos de 10.000 litros de stock">⛽⚠️</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v6.1</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v6.2</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -527,7 +527,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v6.1</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v6.2</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -4655,8 +4655,16 @@
                     // drove between lastUpdate and now. This handles the case where the tick crosses
                     // multiple legs (e.g. driver 0's leg ended and driver 1's leg started during the gap).
                     const tripStart = trip.startTs;
-                    const lastUpdateOffset = (lastUpdate - tripStart) / MS_HOUR; // hours into trip at last update
-                    const nowOffset = (now - tripStart) / MS_HOUR; // hours into trip now
+                    // IMPORTANT: subtract paused time (route incidents: breakdowns, traffic, weather, road
+                    // closures) exactly like routeProgressInfo does for the display — otherwise this clock
+                    // races ahead of the real driving progress on any trip that had a delay, crediting hours
+                    // too fast and walking into later legs (including the mandatory rest) before the driver
+                    // had actually driven that long. This was the root cause of drivers showing very low
+                    // "hours driven today" while the trip's displayed phase already said "Descanso 11h en ruta".
+                    const pausedAtLastUpdate = (trip.pausedMs || 0) + tripPauseMsAt(trip, lastUpdate);
+                    const pausedAtNow = (trip.pausedMs || 0) + tripPauseMsAt(trip, now);
+                    const lastUpdateOffset = (lastUpdate - tripStart - pausedAtLastUpdate) / MS_HOUR; // hours into trip at last update
+                    const nowOffset = (now - tripStart - pausedAtNow) / MS_HOUR; // hours into trip now
                     
                     // Process legs IN ORDER. When a long rest is crossed, reset accumulated hours
                     // at that point so hours driven AFTER the rest are not lost to the daily cap.
