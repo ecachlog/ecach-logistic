@@ -499,7 +499,7 @@
                     <div class="mhud" id="mobileGasLowHud" style="display:none;background:#ff3b30;color:#fff;cursor:pointer" title="Una gasolinera de la alianza tiene menos de 10.000 litros de stock">⛽⚠️</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v6.2</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v6.3</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -527,7 +527,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v6.2</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v6.3</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -2335,6 +2335,16 @@
                     state.warehouse.tankAdblue = cap; // full tank as a starting grace
                     const primary = (state.bases || []).find(b => b.id === state.warehouse.id);
                     if (primary) { primary.tankAdblueCapacity = cap; primary.tankAdblue = cap; }
+                }
+            }
+            // Removed the level-4 lawsuit-fine surprise event after player feedback. Wipe it for anyone who
+            // already had it queued but hadn't paid anything yet (as agreed, already-paid installments are not
+            // refunded, but at the time of writing no player had reached a payment date yet).
+            if (!state._lawsuitFineRemovedV1) {
+                state._lawsuitFineRemovedV1 = true;
+                if (state.lawsuitFine && state.lawsuitFine.paymentsMade < state.lawsuitFine.totalPayments) {
+                    state.lawsuitFine = null;
+                    state._showLawsuitFineRemovedNotice = true;
                 }
             }
             if (!state._kmMigrationV3) {
@@ -6735,6 +6745,7 @@
 
         let _coachChecked = false;
         let _newsChecked = false;
+        let _lawsuitFineNoticeChecked = false;
         function tick() {
             if (window._resumeCheckInProgress) return; // avoid racing with the async cloud-freshness check on resume
             const now = Date.now();
@@ -6753,6 +6764,15 @@
                 if (gate && gate.style.display === "none") {
                     _newsChecked = true;
                     try { maybeSendNewsEmail(); } catch(e){}
+                }
+            }
+            // One-time popup: the level-4 lawsuit-fine event has been removed after player feedback
+            if (!_lawsuitFineNoticeChecked && state && state._showLawsuitFineRemovedNotice) {
+                const gate = $("authGate");
+                if (gate && gate.style.display === "none") {
+                    _lawsuitFineNoticeChecked = true;
+                    state._showLawsuitFineRemovedNotice = false;
+                    showModal("⚖️ Sanción judicial eliminada", "Hemos escuchado vuestro feedback: el evento sorpresa de la demanda laboral (la sanción de 50.000€ al llegar a nivel 4) se ha eliminado del juego. Si la tenías programada y todavía no se te había cobrado ningún plazo, se ha quitado automáticamente de tu Calendario financiero y de Gastos fijos mensuales. ¡Gracias por el feedback!");
                 }
             }
             // Surprise weekly bulk fuel offer email (once on the offer day)
@@ -12381,11 +12401,7 @@
                 const officesNow = (state.commercialOffices || []).length;
                 const officesMax = commercialOfficeLimit();
                 const officesLeft = Math.max(0, officesMax - officesNow);
-                // Surprise event: a lawsuit fine, 2 payments of 25.000€ a month apart, first due in 1 month.
-                const fineNow = Date.now();
-                state.lawsuitFine = { totalPayments: 2, paymentsMade: 0, amountPerPayment: 25000, nextPaymentTs: fineNow + 30 * MS_DAY };
-                addEmail("legal@ecachlogistic.eu", "⚖️ Demanda laboral · Sanción judicial", `Un extrabajador ha denunciado a la empresa por incumplimientos laborales y de seguridad. El juzgado ha fallado en contra de la empresa: sanción de ${fmtMoney(50000)}, a pagar en 2 plazos de ${fmtMoney(25000)} con un mes de diferencia entre ambos.\n\nEl primer plazo (1/2) se cargará automáticamente el ${fmtDate(state.lawsuitFine.nextPaymentTs)} y aparecerá en tu Calendario financiero y en Gastos fijos mensuales hasta completarse.`, "finance");
-                showModal("⚠️ ¡Aprovecha el precio de las oficinas! · ⚖️ Demanda laboral", `Has llegado al nivel 4. <strong>En cuanto subas al nivel 5, construir cada oficina comercial pasará de ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST)} a ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST_L5)}.</strong><br><br>${officesLeft > 0 ? `Todavía puedes construir <strong>${officesLeft} oficina(s)</strong> al precio reducido de ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST)}. Te recomendamos construir todas las que necesites <strong>ANTES de subir al nivel 5</strong> para ahorrar.` : "Ya tienes construidas todas tus oficinas disponibles para este nivel."}<hr style="margin:14px 0;border-color:var(--line)"><strong>⚖️ Demanda laboral</strong><br><br>Un extrabajador ha denunciado a la empresa por incumplimientos laborales y de seguridad. El juzgado ha fallado en tu contra: <strong>sanción de ${fmtMoney(50000)}</strong>, a pagar en <strong>2 plazos de ${fmtMoney(25000)}</strong> con un mes de diferencia entre ambos.<br><br>El primer pago se cargará automáticamente dentro de 1 mes (${fmtDate(state.lawsuitFine.nextPaymentTs)}) y aparecerá en tu Calendario financiero y en Gastos fijos mensuales hasta completarse (1/2, luego 2/2).`);
+                showModal("⚠️ ¡Aprovecha el precio de las oficinas!", `Has llegado al nivel 4. <strong>En cuanto subas al nivel 5, construir cada oficina comercial pasará de ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST)} a ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST_L5)}.</strong><br><br>${officesLeft > 0 ? `Todavía puedes construir <strong>${officesLeft} oficina(s)</strong> al precio reducido de ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST)}. Te recomendamos construir todas las que necesites <strong>ANTES de subir al nivel 5</strong> para ahorrar.` : "Ya tienes construidas todas tus oficinas disponibles para este nivel."}`);
             }
             if (state.level === 5) showModal("📈 Oficinas comerciales más caras", `Has llegado al nivel 5. A partir de ahora, construir una oficina comercial cuesta ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST_L5)} (antes ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST)}). El coste de gestión mensual sigue siendo ${fmtMoney(COMMERCIAL_OFFICE_MONTHLY_COST)}/mes. Las oficinas que ya tengas construidas no se ven afectadas; solo las nuevas.<br><br>⚠️ <strong>Aviso:</strong> en cuanto subas al nivel 6, el coste de construcción volverá a subir mucho, hasta ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST_L6)} por oficina. Si necesitas más oficinas, considera construirlas antes de subir de nivel 6.`);
             if (state.level === 6) showModal("📈📈 Oficinas comerciales mucho más caras", `Has llegado al nivel 6. A partir de ahora, construir una oficina comercial cuesta ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST_L6)} (antes ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST_L5)}). El coste de gestión mensual sigue siendo el mismo, ${fmtMoney(COMMERCIAL_OFFICE_MONTHLY_COST)}/mes — solo sube el coste de construcción. Las oficinas que ya tengas construidas no se ven afectadas; solo las nuevas.`);
