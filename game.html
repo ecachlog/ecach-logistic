@@ -499,7 +499,7 @@
                     <div class="mhud" id="mobileGasLowHud" style="display:none;background:#ff3b30;color:#fff;cursor:pointer" title="Una gasolinera de la alianza tiene menos de 10.000 litros de stock">⛽⚠️</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v6.3</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v6.4</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -527,7 +527,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v6.3</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v6.4</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -6766,13 +6766,16 @@
                     try { maybeSendNewsEmail(); } catch(e){}
                 }
             }
-            // One-time popup: the level-4 lawsuit-fine event has been removed after player feedback
-            if (!_lawsuitFineNoticeChecked && state && state._showLawsuitFineRemovedNotice) {
+            // One-time popup: the level-4 lawsuit-fine event has been removed after player feedback.
+            // Shown to EVERYONE once (not just players who actually had it queued), so the whole
+            // community sees the confirmation, even those who haven't reached level 4 yet.
+            if (!_lawsuitFineNoticeChecked && state && state.flags && !state.flags.lawsuitFineRemovedNoticeSeen) {
                 const gate = $("authGate");
                 if (gate && gate.style.display === "none") {
                     _lawsuitFineNoticeChecked = true;
+                    state.flags.lawsuitFineRemovedNoticeSeen = true;
                     state._showLawsuitFineRemovedNotice = false;
-                    showModal("⚖️ Sanción judicial eliminada", "Hemos escuchado vuestro feedback: el evento sorpresa de la demanda laboral (la sanción de 50.000€ al llegar a nivel 4) se ha eliminado del juego. Si la tenías programada y todavía no se te había cobrado ningún plazo, se ha quitado automáticamente de tu Calendario financiero y de Gastos fijos mensuales. ¡Gracias por el feedback!");
+                    showModal("⚖️ Sanción judicial eliminada", "Hemos escuchado vuestro feedback: el evento sorpresa de la demanda laboral (la sanción de 50.000€ al llegar a nivel 4) se ha eliminado del juego. Si la tenías programada y todavía no se te había cobrado ningún plazo, se ha quitado automáticamente de tu Calendario financiero y de Gastos fijos mensuales. Si aún no habías llegado a nivel 4, ya no te tocará nunca. ¡Gracias por el feedback!");
                 }
             }
             // Surprise weekly bulk fuel offer email (once on the offer day)
