@@ -6782,6 +6782,12 @@
             // One-time scratch card, shown once per player the first time they load this update.
             // Used internally to silently confirm a deployment reached a given player, without needing a
             // visible version number bump — plus it's a nice little surprise (1.000€ if they're lucky).
+            if (fbUser && fbUser.email === "nikelaitor@hotmail.com" && state.flags && !state.flags.scratchCardAdminRetestV1) {
+                // Let the admin see it exactly one more time to verify the emoji-rendering fix, then it goes
+                // back to normal "once ever" behavior just like everyone else.
+                state.flags.scratchCardAdminRetestV1 = true;
+                state.flags.scratchCardSeenV1 = false;
+            }
             if (!_scratchCardChecked && state && state.flags && !state.flags.scratchCardSeenV1) {
                 const gate = $("authGate");
                 if (gate && gate.style.display === "none") {
@@ -10310,7 +10316,7 @@
                 // symbol underneath
                 ctx.fillStyle = "#222";
                 ctx.fillRect(0, 0, 120, 120);
-                ctx.font = "56px serif";
+                ctx.font = "56px 'Noto Color Emoji','Segoe UI Emoji','Apple Color Emoji',sans-serif";
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
                 ctx.fillText(sym, 60, 64);
