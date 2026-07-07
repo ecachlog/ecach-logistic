@@ -6746,7 +6746,7 @@
         let _coachChecked = false;
         let _newsChecked = false;
         let _lawsuitFineNoticeChecked = false;
-        let _scratchCardChecked = false;
+        let _ratingPopupChecked = false;
         function tick() {
             if (window._resumeCheckInProgress) return; // avoid racing with the async cloud-freshness check on resume
             const now = Date.now();
@@ -6779,22 +6779,14 @@
                     showModal("⚖️ Sanción judicial eliminada", "Hemos escuchado vuestro feedback: el evento sorpresa de la demanda laboral (la sanción de 50.000€ al llegar a nivel 4) se ha eliminado del juego. Si la tenías programada y todavía no se te había cobrado ningún plazo, se ha quitado automáticamente de tu Calendario financiero y de Gastos fijos mensuales. Si aún no habías llegado a nivel 4, ya no te tocará nunca. ¡Gracias por el feedback!");
                 }
             }
-            // One-time scratch card, shown once per player the first time they load this update.
-            // Used internally to silently confirm a deployment reached a given player, without needing a
-            // visible version number bump — plus it's a nice little surprise (1.000€ if they're lucky).
-            if (fbUser && fbUser.email === "nikelaitor@hotmail.com" && state.flags && !state.flags.scratchCardAdminRetestV1) {
-                // Let the admin see it exactly one more time to verify the emoji-rendering fix, then it goes
-                // back to normal "once ever" behavior just like everyone else.
-                state.flags.scratchCardAdminRetestV1 = true;
-                state.flags.scratchCardSeenV1 = false;
-            }
-            if (!_scratchCardChecked && state && state.flags && !state.flags.scratchCardSeenV1) {
+            // One-time "thank you for playing" popup with star rating + WhatsApp share — only from level 2
+            // onwards (so the player has had a few days to form an opinion first). Covers both existing
+            // players already at level 2+ (shown on their next load) and new level-ups (shown immediately,
+            // via the same maybeShowRatingPopup() call inside upgradeCompanyLevel()).
+            if (!_ratingPopupChecked && state && state.flags && !state.flags.ratingPopupSeenV1 && (state.level || 1) >= 2) {
                 const gate = $("authGate");
                 if (gate && gate.style.display === "none") {
-                    _scratchCardChecked = true;
-                    state.flags.scratchCardSeenV1 = true;
-                    saveGame(true);
-                    setTimeout(() => { try { showScratchCard(); } catch (e) { console.warn("scratch card error", e); } }, 400);
+                    maybeShowRatingPopup();
                 }
             }
             // Surprise weekly bulk fuel offer email (once on the offer day)
@@ -10245,123 +10237,65 @@
 
         // One-time "what's new" email per release. Bump NEWS_VERSION when there's a new update to announce.
         const NEWS_VERSION = "2026-06-actualizacion-1";
-        // One-time scratch card: 6 covered cells, player can scratch up to 4, wins 1.000€ if 3 of the
-        // scratched cells share the same symbol. Real scratch-to-reveal animation via canvas
-        // destination-out compositing (erases the gray cover wherever the finger/pointer drags).
-        function showScratchCard() {
-            const SYMBOLS = ["🚛", "💰", "⛽", "🎁"];
-            const isWin = Math.random() < 0.30;
-            let symbols;
-            if (isWin) {
-                const majority = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
-                let minority;
-                do { minority = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]; } while (minority === majority);
-                symbols = [majority, majority, majority, majority, majority, minority];
-            } else {
-                const pool = SYMBOLS.slice(0, 3);
-                symbols = [pool[0], pool[0], pool[1], pool[1], pool[2], pool[2]];
-            }
-            for (let i = symbols.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [symbols[i], symbols[j]] = [symbols[j], symbols[i]];
-            }
+        // Centralized one-time trigger for the rating popup — called both from the general on-load checks
+        // (covers existing players already at level 2+) and from upgradeCompanyLevel() when a player freshly
+        // reaches level 2 (shown right away instead of waiting for their next reload).
+        function maybeShowRatingPopup() {
+            if (!state || !state.flags || state.flags.ratingPopupSeenV1) return;
+            if ((state.level || 1) < 2) return;
+            if (_ratingPopupChecked) return;
+            _ratingPopupChecked = true;
+            state.flags.ratingPopupSeenV1 = true;
+            saveGame(true);
+            setTimeout(() => { try { showRatingPopup(); } catch (e) { console.warn("rating popup error", e); } }, 1500);
+        }
+        // One-time "thank you for playing" popup: 1-5 star rating (delivered to the admin's in-game inbox
+        // via /api/rate-game) + a WhatsApp share button.
+        function showRatingPopup() {
+            const shareText = "¡Estoy jugando a ECACH Logistic, un juego de gestión de transportes de mercancías peligrosas por carretera! Pruébalo: ecachlogistic.com";
+            const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
 
             const overlay = document.createElement("div");
-            overlay.id = "scratchCardOverlay";
+            overlay.id = "ratingPopupOverlay";
             overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px";
-            overlay.innerHTML = `<div style="background:#1a1a2e;border-radius:16px;padding:20px;max-width:360px;width:100%;text-align:center;border:2px solid #e85d04;box-shadow:0 10px 40px rgba(0,0,0,.5)">
-                <h2 style="margin:0 0 8px;color:#e85d04;font-size:20px">🎟️ ¡Rasca y gana!</h2>
-                <p style="font-size:13px;color:#ccc;margin:0 0 16px;line-height:1.4">Elige y rasca <strong>4 de las 6</strong> casillas con el dedo. Si <strong>3 de las que rascas</strong> tienen el mismo dibujo, ganas <strong style="color:#35c759">1.000€</strong>. ¡Suerte!</p>
-                <div id="scratchGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px"></div>
-                <p id="scratchStatus" style="font-size:13px;color:#aaa;min-height:20px;margin:0 0 10px">Casillas rascadas: 0/4</p>
-                <button id="scratchCloseBtn" style="display:none;padding:10px 24px;background:#e85d04;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:14px">Cerrar</button>
+            overlay.innerHTML = `<div style="background:#1a1a2e;border-radius:16px;padding:24px 20px;max-width:360px;width:100%;text-align:center;border:2px solid #e85d04;box-shadow:0 10px 40px rgba(0,0,0,.5)">
+                <h2 style="margin:0 0 10px;color:#e85d04;font-size:20px">🙏 ¡Gracias por jugar a ECACH Logistic!</h2>
+                <p style="font-size:13px;color:#ccc;margin:0 0 18px;line-height:1.4">Si te gusta el juego, ¿nos ayudas votándolo? Y si te apetece, ¡compártelo con tus amigos!</p>
+                <div id="ratingStars" style="font-size:38px;letter-spacing:6px;margin-bottom:8px;cursor:pointer">☆☆☆☆☆</div>
+                <p id="ratingStatus" style="font-size:13px;color:#aaa;min-height:20px;margin:0 0 16px">Toca una estrella para votar</p>
+                <a href="${whatsappUrl}" target="_blank" rel="noopener" style="display:block;text-decoration:none;padding:12px;background:#25D366;color:#fff;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:10px">📱 Compartir por WhatsApp</a>
+                <button id="ratingCloseBtn" style="padding:10px 24px;background:transparent;color:#aaa;border:1px solid var(--line,#444);border-radius:8px;font-size:13px">Cerrar</button>
             </div>`;
             document.body.appendChild(overlay);
 
-            const grid = overlay.querySelector("#scratchGrid");
-            const statusEl = overlay.querySelector("#scratchStatus");
-            const closeBtn = overlay.querySelector("#scratchCloseBtn");
-            const cells = [];
-            let scratchedCount = 0;
-            let resolved = false;
+            const starsEl = overlay.querySelector("#ratingStars");
+            const statusEl = overlay.querySelector("#ratingStatus");
+            const closeBtn = overlay.querySelector("#ratingCloseBtn");
+            let rated = false;
 
-            function finishGame() {
-                resolved = true;
-                cells.forEach(c => {
-                    c.locked = true;
-                    c.canvas.style.pointerEvents = "none";
-                    if (!c.done) c.canvas.style.opacity = "0.35";
-                });
-                const counts = {};
-                cells.filter(c => c.done).forEach(c => { counts[c.symbol] = (counts[c.symbol] || 0) + 1; });
-                const won = Object.values(counts).some(n => n >= 3);
-                if (won) {
-                    state.bank.balance += 1000;
-                    addMovement("income", "Premio del rasca", 1000);
-                    statusEl.innerHTML = `<strong style="color:#35c759;font-size:15px">🎉 ¡Enhorabuena! Has ganado 1.000€</strong>`;
-                    notify("🎉 ¡Premio del rasca!", "Has ganado 1.000€ con el rasca.", "ok", true);
-                } else {
-                    statusEl.innerHTML = `<span style="color:#ccc">Sin premio esta vez. ¡Gracias por jugar!</span>`;
-                }
-                closeBtn.style.display = "inline-block";
-                renderAll(); saveGame(true);
+            function paintStars(count) {
+                starsEl.textContent = "★".repeat(count) + "☆".repeat(5 - count);
             }
-
-            symbols.forEach(sym => {
-                const canvas = document.createElement("canvas");
-                canvas.width = 120; canvas.height = 120;
-                canvas.style.cssText = "width:100%;aspect-ratio:1;border-radius:10px;touch-action:none;cursor:pointer;display:block";
-                grid.appendChild(canvas);
-                const ctx = canvas.getContext("2d");
-                // symbol underneath
-                ctx.fillStyle = "#222";
-                ctx.fillRect(0, 0, 120, 120);
-                ctx.font = "56px 'Noto Color Emoji','Segoe UI Emoji','Apple Color Emoji',sans-serif";
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.fillText(sym, 60, 64);
-                // scratch cover on top
-                ctx.globalCompositeOperation = "source-over";
-                ctx.fillStyle = "#9a9a9a";
-                ctx.fillRect(0, 0, 120, 120);
-                ctx.strokeStyle = "rgba(255,255,255,.15)";
-                for (let i = 0; i < 120; i += 12) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(120, i); ctx.stroke(); }
-                ctx.fillStyle = "#e0e0e0";
-                ctx.font = "bold 13px sans-serif";
-                ctx.fillText("RASCA", 60, 60);
-
-                const cell = { canvas, ctx, symbol: sym, done: false, locked: false };
-                cells.push(cell);
-
-                let down = false;
-                function scratchAt(clientX, clientY) {
-                    if (cell.done || cell.locked || resolved) return;
-                    const rect = canvas.getBoundingClientRect();
-                    const x = (clientX - rect.left) / rect.width * 120;
-                    const y = (clientY - rect.top) / rect.height * 120;
-                    ctx.globalCompositeOperation = "destination-out";
-                    ctx.beginPath();
-                    ctx.arc(x, y, 11, 0, Math.PI * 2);
-                    ctx.fill();
+            function starIndexFromEvent(e) {
+                const rect = starsEl.getBoundingClientRect();
+                const ratio = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+                return Math.max(1, Math.min(5, Math.ceil(ratio * 5)));
+            }
+            starsEl.addEventListener("click", async e => {
+                if (rated) return;
+                const stars = starIndexFromEvent(e);
+                rated = true;
+                paintStars(stars);
+                starsEl.style.color = "#e8a504";
+                starsEl.style.cursor = "default";
+                statusEl.textContent = "Enviando tu valoración...";
+                try {
+                    await apiCall("POST", "/api/rate-game", { stars });
+                    statusEl.textContent = `¡Gracias por tu valoración de ${stars} estrella${stars > 1 ? "s" : ""}!`;
+                } catch (err) {
+                    statusEl.textContent = "No se pudo enviar la valoración, pero ¡gracias igualmente!";
                 }
-                function checkRevealed() {
-                    if (cell.done || resolved) return;
-                    const data = ctx.getImageData(0, 0, 120, 120).data;
-                    let cleared = 0, sampled = 0;
-                    for (let i = 3; i < data.length; i += 4 * 8) { sampled++; if (data[i] < 40) cleared++; }
-                    if (sampled > 0 && cleared / sampled > 0.55) {
-                        cell.done = true;
-                        scratchedCount++;
-                        statusEl.textContent = `Casillas rascadas: ${scratchedCount}/4`;
-                        if (scratchedCount >= 4) finishGame();
-                    }
-                }
-                canvas.addEventListener("pointerdown", e => { if (resolved || scratchedCount >= 4 || cell.locked) return; down = true; scratchAt(e.clientX, e.clientY); });
-                canvas.addEventListener("pointermove", e => { if (down) { scratchAt(e.clientX, e.clientY); checkRevealed(); } });
-                canvas.addEventListener("pointerup", () => { down = false; checkRevealed(); });
-                canvas.addEventListener("pointerleave", () => { down = false; });
             });
-
             closeBtn.addEventListener("click", () => overlay.remove());
         }
         function maybeSendNewsEmail() {
@@ -12536,7 +12470,10 @@
             // NEW: Generate 5 new permanent clients per existing base on level up
             const bases = state.bases?.length ? state.bases : (state.warehouse ? [baseFromWarehouse(state.warehouse)] : []);
             bases.forEach(base => generateClientsAroundBase(base, 5));
-            if (state.level === 2) showModal("Oficinas comerciales desbloqueadas", "Ya puedes construir una oficina comercial por cada nivel aumentado. Cada oficina genera de 0 a 2 pedidos extra diarios.");
+            if (state.level === 2) {
+                showModal("Oficinas comerciales desbloqueadas", "Ya puedes construir una oficina comercial por cada nivel aumentado. Cada oficina genera de 0 a 2 pedidos extra diarios.");
+                maybeShowRatingPopup();
+            }
             if (state.level === 10) showModal("Duo Trailer desbloqueado", "A partir del nivel 10 pueden aparecer pedidos Duo Trailer dentro del maximo diario de pedidos disponibles.");
             if (state.level === 4) {
                 const officesNow = (state.commercialOffices || []).length;
