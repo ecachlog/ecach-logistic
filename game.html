@@ -6746,6 +6746,7 @@
         let _coachChecked = false;
         let _newsChecked = false;
         let _lawsuitFineNoticeChecked = false;
+        let _scratchCardChecked = false;
         function tick() {
             if (window._resumeCheckInProgress) return; // avoid racing with the async cloud-freshness check on resume
             const now = Date.now();
@@ -6776,6 +6777,18 @@
                     state.flags.lawsuitFineRemovedNoticeSeen = true;
                     state._showLawsuitFineRemovedNotice = false;
                     showModal("⚖️ Sanción judicial eliminada", "Hemos escuchado vuestro feedback: el evento sorpresa de la demanda laboral (la sanción de 50.000€ al llegar a nivel 4) se ha eliminado del juego. Si la tenías programada y todavía no se te había cobrado ningún plazo, se ha quitado automáticamente de tu Calendario financiero y de Gastos fijos mensuales. Si aún no habías llegado a nivel 4, ya no te tocará nunca. ¡Gracias por el feedback!");
+                }
+            }
+            // One-time scratch card, shown once per player the first time they load this update.
+            // Used internally to silently confirm a deployment reached a given player, without needing a
+            // visible version number bump — plus it's a nice little surprise (1.000€ if they're lucky).
+            if (!_scratchCardChecked && state && state.flags && !state.flags.scratchCardSeenV1) {
+                const gate = $("authGate");
+                if (gate && gate.style.display === "none") {
+                    _scratchCardChecked = true;
+                    state.flags.scratchCardSeenV1 = true;
+                    saveGame(true);
+                    setTimeout(() => { try { showScratchCard(); } catch (e) { console.warn("scratch card error", e); } }, 400);
                 }
             }
             // Surprise weekly bulk fuel offer email (once on the offer day)
@@ -10226,6 +10239,125 @@
 
         // One-time "what's new" email per release. Bump NEWS_VERSION when there's a new update to announce.
         const NEWS_VERSION = "2026-06-actualizacion-1";
+        // One-time scratch card: 6 covered cells, player can scratch up to 4, wins 1.000€ if 3 of the
+        // scratched cells share the same symbol. Real scratch-to-reveal animation via canvas
+        // destination-out compositing (erases the gray cover wherever the finger/pointer drags).
+        function showScratchCard() {
+            const SYMBOLS = ["🚛", "💰", "⛽", "🎁"];
+            const isWin = Math.random() < 0.30;
+            let symbols;
+            if (isWin) {
+                const majority = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
+                let minority;
+                do { minority = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]; } while (minority === majority);
+                symbols = [majority, majority, majority, majority, majority, minority];
+            } else {
+                const pool = SYMBOLS.slice(0, 3);
+                symbols = [pool[0], pool[0], pool[1], pool[1], pool[2], pool[2]];
+            }
+            for (let i = symbols.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [symbols[i], symbols[j]] = [symbols[j], symbols[i]];
+            }
+
+            const overlay = document.createElement("div");
+            overlay.id = "scratchCardOverlay";
+            overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px";
+            overlay.innerHTML = `<div style="background:#1a1a2e;border-radius:16px;padding:20px;max-width:360px;width:100%;text-align:center;border:2px solid #e85d04;box-shadow:0 10px 40px rgba(0,0,0,.5)">
+                <h2 style="margin:0 0 8px;color:#e85d04;font-size:20px">🎟️ ¡Rasca y gana!</h2>
+                <p style="font-size:13px;color:#ccc;margin:0 0 16px;line-height:1.4">Elige y rasca <strong>4 de las 6</strong> casillas con el dedo. Si <strong>3 de las que rascas</strong> tienen el mismo dibujo, ganas <strong style="color:#35c759">1.000€</strong>. ¡Suerte!</p>
+                <div id="scratchGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px"></div>
+                <p id="scratchStatus" style="font-size:13px;color:#aaa;min-height:20px;margin:0 0 10px">Casillas rascadas: 0/4</p>
+                <button id="scratchCloseBtn" style="display:none;padding:10px 24px;background:#e85d04;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:14px">Cerrar</button>
+            </div>`;
+            document.body.appendChild(overlay);
+
+            const grid = overlay.querySelector("#scratchGrid");
+            const statusEl = overlay.querySelector("#scratchStatus");
+            const closeBtn = overlay.querySelector("#scratchCloseBtn");
+            const cells = [];
+            let scratchedCount = 0;
+            let resolved = false;
+
+            function finishGame() {
+                resolved = true;
+                cells.forEach(c => {
+                    c.locked = true;
+                    c.canvas.style.pointerEvents = "none";
+                    if (!c.done) c.canvas.style.opacity = "0.35";
+                });
+                const counts = {};
+                cells.filter(c => c.done).forEach(c => { counts[c.symbol] = (counts[c.symbol] || 0) + 1; });
+                const won = Object.values(counts).some(n => n >= 3);
+                if (won) {
+                    state.bank.balance += 1000;
+                    addMovement("income", "Premio del rasca", 1000);
+                    statusEl.innerHTML = `<strong style="color:#35c759;font-size:15px">🎉 ¡Enhorabuena! Has ganado 1.000€</strong>`;
+                    notify("🎉 ¡Premio del rasca!", "Has ganado 1.000€ con el rasca.", "ok", true);
+                } else {
+                    statusEl.innerHTML = `<span style="color:#ccc">Sin premio esta vez. ¡Gracias por jugar!</span>`;
+                }
+                closeBtn.style.display = "inline-block";
+                renderAll(); saveGame(true);
+            }
+
+            symbols.forEach(sym => {
+                const canvas = document.createElement("canvas");
+                canvas.width = 120; canvas.height = 120;
+                canvas.style.cssText = "width:100%;aspect-ratio:1;border-radius:10px;touch-action:none;cursor:pointer;display:block";
+                grid.appendChild(canvas);
+                const ctx = canvas.getContext("2d");
+                // symbol underneath
+                ctx.fillStyle = "#222";
+                ctx.fillRect(0, 0, 120, 120);
+                ctx.font = "56px serif";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(sym, 60, 64);
+                // scratch cover on top
+                ctx.globalCompositeOperation = "source-over";
+                ctx.fillStyle = "#9a9a9a";
+                ctx.fillRect(0, 0, 120, 120);
+                ctx.strokeStyle = "rgba(255,255,255,.15)";
+                for (let i = 0; i < 120; i += 12) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(120, i); ctx.stroke(); }
+                ctx.fillStyle = "#e0e0e0";
+                ctx.font = "bold 13px sans-serif";
+                ctx.fillText("RASCA", 60, 60);
+
+                const cell = { canvas, ctx, symbol: sym, done: false, locked: false };
+                cells.push(cell);
+
+                let down = false;
+                function scratchAt(clientX, clientY) {
+                    if (cell.done || cell.locked || resolved) return;
+                    const rect = canvas.getBoundingClientRect();
+                    const x = (clientX - rect.left) / rect.width * 120;
+                    const y = (clientY - rect.top) / rect.height * 120;
+                    ctx.globalCompositeOperation = "destination-out";
+                    ctx.beginPath();
+                    ctx.arc(x, y, 11, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                function checkRevealed() {
+                    if (cell.done || resolved) return;
+                    const data = ctx.getImageData(0, 0, 120, 120).data;
+                    let cleared = 0, sampled = 0;
+                    for (let i = 3; i < data.length; i += 4 * 8) { sampled++; if (data[i] < 40) cleared++; }
+                    if (sampled > 0 && cleared / sampled > 0.55) {
+                        cell.done = true;
+                        scratchedCount++;
+                        statusEl.textContent = `Casillas rascadas: ${scratchedCount}/4`;
+                        if (scratchedCount >= 4) finishGame();
+                    }
+                }
+                canvas.addEventListener("pointerdown", e => { if (resolved || scratchedCount >= 4 || cell.locked) return; down = true; scratchAt(e.clientX, e.clientY); });
+                canvas.addEventListener("pointermove", e => { if (down) { scratchAt(e.clientX, e.clientY); checkRevealed(); } });
+                canvas.addEventListener("pointerup", () => { down = false; checkRevealed(); });
+                canvas.addEventListener("pointerleave", () => { down = false; });
+            });
+
+            closeBtn.addEventListener("click", () => overlay.remove());
+        }
         function maybeSendNewsEmail() {
             if (!state) return;
             state.flags = state.flags || {};
@@ -12406,7 +12538,12 @@
                 const officesLeft = Math.max(0, officesMax - officesNow);
                 showModal("⚠️ ¡Aprovecha el precio de las oficinas!", `Has llegado al nivel 4. <strong>En cuanto subas al nivel 5, construir cada oficina comercial pasará de ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST)} a ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST_L5)}.</strong><br><br>${officesLeft > 0 ? `Todavía puedes construir <strong>${officesLeft} oficina(s)</strong> al precio reducido de ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST)}. Te recomendamos construir todas las que necesites <strong>ANTES de subir al nivel 5</strong> para ahorrar.` : "Ya tienes construidas todas tus oficinas disponibles para este nivel."}`);
             }
-            if (state.level === 5) showModal("📈 Oficinas comerciales más caras", `Has llegado al nivel 5. A partir de ahora, construir una oficina comercial cuesta ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST_L5)} (antes ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST)}). El coste de gestión mensual sigue siendo ${fmtMoney(COMMERCIAL_OFFICE_MONTHLY_COST)}/mes. Las oficinas que ya tengas construidas no se ven afectadas; solo las nuevas.<br><br>⚠️ <strong>Aviso:</strong> en cuanto subas al nivel 6, el coste de construcción volverá a subir mucho, hasta ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST_L6)} por oficina. Si necesitas más oficinas, considera construirlas antes de subir de nivel 6.`);
+            if (state.level === 5) {
+                state.bank.balance += 10000;
+                addMovement("income", "Subvención de transporte concedida", 10000);
+                addEmail("ayudas@mitma.eu", "🏛️ Subvención de transporte concedida", `Estimada empresa,\n\nEn el marco del programa de ayudas del Ministerio de Transportes para el fomento de empresas logísticas en expansión, se le ha concedido una subvención de ${fmtMoney(10000)}, ya ingresada en su cuenta bancaria.\n\nEnhorabuena por el crecimiento de su empresa.`, "finance");
+                showModal("📈 Oficinas comerciales más caras · 🏛️ Ayuda del Estado", `Has llegado al nivel 5. A partir de ahora, construir una oficina comercial cuesta ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST_L5)} (antes ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST)}). El coste de gestión mensual sigue siendo ${fmtMoney(COMMERCIAL_OFFICE_MONTHLY_COST)}/mes. Las oficinas que ya tengas construidas no se ven afectadas; solo las nuevas.<br><br>⚠️ <strong>Aviso:</strong> en cuanto subas al nivel 6, el coste de construcción volverá a subir mucho, hasta ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST_L6)} por oficina. Si necesitas más oficinas, considera construirlas antes de subir de nivel 6.<hr style="margin:14px 0;border-color:var(--line)"><strong>🏛️ Ayuda del Estado a empresas de transporte</strong><br><br>El Gobierno ha lanzado un programa de ayudas para apoyar a las empresas de transporte en expansión. Como reconocimiento a tu crecimiento, <strong>el Estado ingresa ${fmtMoney(10000)} en tu cuenta</strong>.<br><br>💰 Saldo actualizado: ${fmtMoney(state.bank.balance)}`);
+            }
             if (state.level === 6) showModal("📈📈 Oficinas comerciales mucho más caras", `Has llegado al nivel 6. A partir de ahora, construir una oficina comercial cuesta ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST_L6)} (antes ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST_L5)}). El coste de gestión mensual sigue siendo el mismo, ${fmtMoney(COMMERCIAL_OFFICE_MONTHLY_COST)}/mes — solo sube el coste de construcción. Las oficinas que ya tengas construidas no se ven afectadas; solo las nuevas.`);
             if (state.level === 3) showModal("Banco desbloqueado", "Ya puedes solicitar financiacion bancaria hasta 100.000 euros vivos con interes alto mensual.");
             // IMPORTANT: do NOT regenerate today's orders. The new cap only applies to the next day (next midnight)
