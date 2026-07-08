@@ -500,7 +500,7 @@
                     <div class="mhud" id="mobileRouletteHud" style="display:none;background:#35c759;color:#000;cursor:pointer" title="Tienes la ruleta disponible para tirar">🎰</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v7.2</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v7.4</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -528,7 +528,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v7.2</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v7.4</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -10324,9 +10324,6 @@
             confirmBtn.addEventListener("click", async () => {
                 if (rated || !selected) return;
                 rated = true;
-                // Mark as rated immediately so this never shows again, regardless of network outcome.
-                if (state.flags) state.flags.ratingPopupSeenV1 = true;
-                saveGame(true);
                 starButtons.forEach(b => { b.style.cursor = "default"; });
                 confirmBtn.disabled = true;
                 confirmBtn.style.opacity = ".6";
@@ -10335,10 +10332,14 @@
                 const comment = (commentEl.value || "").trim();
                 try {
                     await apiCall("POST", "/api/rate-game", { stars: selected, comment });
+                    // Only mark as rated (never show again) once the submission actually succeeded.
+                    if (state.flags) state.flags.ratingPopupSeenV1 = true;
+                    saveGame(true);
                     statusEl.textContent = `¡Gracias por tu valoración de ${selected} estrella${selected > 1 ? "s" : ""}!`;
                     confirmBtn.style.display = "none";
                 } catch (err) {
-                    statusEl.textContent = "No se pudo enviar la valoración, pero ¡gracias igualmente!";
+                    // Do NOT mark as rated — the popup will ask again next session, as if nothing happened.
+                    statusEl.textContent = `No se pudo enviar la valoración (${err.message || "error desconocido"}). Te lo volveremos a preguntar la próxima vez que abras el juego.`;
                     confirmBtn.style.display = "none";
                 }
             });
