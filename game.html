@@ -500,7 +500,7 @@
                     <div class="mhud" id="mobileRouletteHud" style="display:none;background:#35c759;color:#000;cursor:pointer" title="Tienes la ruleta disponible para tirar">🎰</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v7.0</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v7.2</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -528,7 +528,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v7.0</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v7.2</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -2348,6 +2348,13 @@
                     state.lawsuitFine = null;
                     state._showLawsuitFineRemovedNotice = true;
                 }
+            }
+            // One-time reset: show the rating popup again to EVERYONE (even those who already rated),
+            // so everyone gets the chance to also leave a comment now that it exists. After they rate
+            // (or don't), it goes back to normal: shown every session until rated, never again after.
+            if (!state.flags._ratingPopupResetV2) {
+                state.flags._ratingPopupResetV2 = true;
+                state.flags.ratingPopupSeenV1 = false;
             }
             if (!state._kmMigrationV3) {
                 state.fleet?.forEach(truck => {
@@ -12188,7 +12195,7 @@
                     </div>`).join("");
                 }
                 const categoryLabels = { pedido_diario: "📦 Pedido diario", ruleta: "🎡 Ruleta", oficina_comercial: "🏢 Oficina comercial", gasolinera: "⛽ Gasolinera", contrato_aeroportuario: "✈️ Contrato aeroportuario" };
-                html += `<h5 style="margin:14px 0 4px;color:#e85d04">📜 Historial de entregas (últimos 30 días, máx. 200)</h5>`;
+                html += `<h5 style="margin:14px 0 4px;color:#e85d04">📜 Historial de entregas (últimos 30 días, todos los viajes)</h5>`;
                 if (!deliveries.length) {
                     html += `<p class="muted">Sin entregas registradas.</p>`;
                 } else {
