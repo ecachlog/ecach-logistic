@@ -497,9 +497,10 @@
                     <div class="mhud" id="mobileAdrHud">ADR OK</div>
                     <div class="mhud" id="mobileRaiseHud" style="display:none;background:#e8a504;color:#000;cursor:pointer" title="Tienes ofertas de subida de sueldo pendientes de revisar">💲+</div>
                     <div class="mhud" id="mobileGasLowHud" style="display:none;background:#ff3b30;color:#fff;cursor:pointer" title="Una gasolinera de la alianza tiene menos de 10.000 litros de stock">⛽⚠️</div>
+                    <div class="mhud" id="mobileRouletteHud" style="display:none;background:#35c759;color:#000;cursor:pointer" title="Tienes la ruleta disponible para tirar">🎰</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v6.9</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v7.0</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -527,7 +528,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v6.9</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v7.0</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -565,6 +566,7 @@
                     <div class="hud-card"><span class="label">Restricción ADR</span><div class="value" id="adrHud">OK</div></div>
                     <div class="hud-card" id="raiseHudCard" style="display:none;cursor:pointer;border-color:#e8a504"><span class="label">💲 Ofertas de sueldo pendientes</span><div class="value" id="raiseHud" style="color:#e8a504">0</div></div>
                     <div class="hud-card" id="gasLowHudCard" style="display:none;cursor:pointer;border-color:#ff3b30"><span class="label">⛽ Gasolinera con stock bajo</span><div class="value" style="color:#ff3b30">⚠️</div></div>
+                    <div class="hud-card" id="rouletteHudCard" style="display:none;cursor:pointer;border-color:#35c759"><span class="label">🎰 Ruleta disponible</span><div class="value" style="color:#35c759">¡Tira ya!</div></div>
                 </div>
             </header>
 
@@ -4907,6 +4909,12 @@
             }
         }
 
+        // Fire-and-forget delivery audit log: records every delivered order/trip (any category) with an
+        // exact timestamp, so the admin can verify a player's claim about how many orders they've delivered.
+        // Never blocks or fails gameplay — errors are silently ignored.
+        function logDelivery(category, description) {
+            try { apiCall("POST", "/api/log-delivery", { category, description }).catch(() => {}); } catch (e) {}
+        }
         function completeTrip(trip) {
             // If trip ended in the past (game was closed), use actual arrival time so rest periods are calculated correctly
             const realNow = Date.now();
@@ -4978,12 +4986,15 @@
                 // Remove the corresponding accepted order from Pedidos (it's now delivered).
                 state.orders = state.orders.filter(o => o.id !== trip.orderId);
                 notify("Viaje aeroportuario entregado", `Viaje ${ac.tripN} completado. Has cobrado ${fmtMoney(pay)}.`, "ok", true);
+                logDelivery("contrato_aeroportuario", `Contrato #${shortId(ac.contractId)} · viaje ${ac.tripN}/${ac.totalTrips || "?"} · ${ac.airportName || "aeropuerto"} · ${fmtNum(trip.kmRound || 0)} km · ${fmtMoney(pay)}`);
                 saveGame(true); renderAll(); drawMap(true);
                 return;
             }
             const order = state.orders.find(o => o.id === trip.orderId);
             if (!order) return;
             order.status = "completed"; order.completedAt = now; order.late = now > order.deadline;
+            const deliveryCategory = order.gasStationOrder ? "gasolinera" : order.officeOrder ? "oficina_comercial" : order.rouletteContract ? "ruleta" : "pedido_diario";
+            logDelivery(deliveryCategory, `${order.clientName || "Cliente"} · Pedido #${shortId(order.id)} · ${fmtNum(trip.kmRound || order.kmRound || 0)} km · ${fmtMoney(order.offer || 0)}${order.late ? " (con retraso)" : ""}`);
             // Save truck data on order for reporting
             order.truckId = trip.truckId || null;
             order.truckPlate = trip.truckPlate || null;
@@ -6830,6 +6841,7 @@
             const ma = $("mobileAdrHud");
             if (mb) { mb.textContent = fmtMoney(state.bank.balance); mb.className = `mhud ${state.bank.balance < 0 ? "danger-text" : "ok-text"}`; }
             if (ma) { ma.textContent = adr.restricted ? (adrProtected ? "ADR ✅" : "ADR ⛔") : "ADR ✅"; ma.className = `mhud ${adr.restricted && !adrProtected ? "danger-text" : "ok-text"}`; }
+            if (typeof updateRouletteBadge === "function") updateRouletteBadge();
             // Pending salary-raise indicator (both the generic seniority system and the Duo Trailer one) —
             // visible from anywhere in the app, not just inside Personal → Ofertas pendientes.
             const pendingRaiseCount = (state.workers || []).filter(w => w.raiseRequested || w.pendingRaise).length;
@@ -8492,7 +8504,7 @@
             const playerId = fbUser?.uid || null;
             const playerEmail = fbUser?.email || null;
             const playerIdCard = playerId ? `<div class="card"><h3>🆔 ID de jugador</h3><p style="color:var(--muted);font-size:13px">Este es tu identificador único en el juego. Lo puedes compartir con otros jugadores para que te identifiquen al unirse a tu alianza.</p><p><strong>Email:</strong> ${playerEmail}</p><p><strong>ID:</strong> <span class="mono" style="background:#1e2530;padding:4px 8px;border-radius:4px;font-size:11px;word-break:break-all;display:inline-block;max-width:100%">${playerId}</span></p><button class="ghost small" data-action="copy-player-id">📋 Copiar ID</button></div>` : `<div class="card"><h3>🆔 ID de jugador</h3><p style="color:var(--muted)">Inicia sesión para ver tu ID de jugador.</p></div>`;
-            const adminPanel = (fbUser && fbUser.email === "nikelaitor@hotmail.com") ? `<div class="card" style="border-color:rgba(232,165,4,.4);background:rgba(232,165,4,.06)"><h3>🔧 Administrador — Mantenimiento</h3><p style="color:var(--muted);font-size:13px">Antes de subir una actualización, activa el mantenimiento: en menos de 1 minuto todos los jugadores guardarán su partida y serán expulsados con un mensaje pidiéndoles volver en 10 minutos. Recuerda DESACTIVARLO cuando termines de subir.</p><div class="row" style="margin-top:10px"><button class="primary" data-action="maintenance-on">🔧 Activar mantenimiento</button><button class="ghost" data-action="maintenance-off">✅ Desactivar mantenimiento</button></div><hr style="margin:14px 0;border-color:rgba(232,165,4,.2)"><p style="color:var(--muted);font-size:13px">Herramientas de reparación de partida (solo para tu cuenta):</p><div class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px"><button class="danger" data-action="admin-fix-ghost-trips">🧹 Limpiar viajes fantasma</button><button class="ghost" data-action="admin-fix-ghost-maintenance">🔩 Limpiar mantenimientos fantasma</button></div></div>` : "";
+            const adminPanel = (fbUser && fbUser.email === "nikelaitor@hotmail.com") ? `<div class="card" style="border-color:rgba(232,165,4,.4);background:rgba(232,165,4,.06)"><h3>🔧 Administrador — Mantenimiento</h3><p style="color:var(--muted);font-size:13px">Antes de subir una actualización, activa el mantenimiento: en menos de 1 minuto todos los jugadores guardarán su partida y serán expulsados con un mensaje pidiéndoles volver en 10 minutos. Recuerda DESACTIVARLO cuando termines de subir.</p><div class="row" style="margin-top:10px"><button class="primary" data-action="maintenance-on">🔧 Activar mantenimiento</button><button class="ghost" data-action="maintenance-off">✅ Desactivar mantenimiento</button></div><hr style="margin:14px 0;border-color:rgba(232,165,4,.2)"><p style="color:var(--muted);font-size:13px">Herramientas de reparación de partida (solo para tu cuenta):</p><div class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px"><button class="danger" data-action="admin-fix-ghost-trips">🧹 Limpiar viajes fantasma</button><button class="ghost" data-action="admin-fix-ghost-maintenance">🔩 Limpiar mantenimientos fantasma</button></div><hr style="margin:14px 0;border-color:rgba(232,165,4,.2)"><h4 style="margin:0 0 6px;color:#e85d04">🔍 Buscar contratos y pedidos de un jugador por ID</h4><p style="color:var(--muted);font-size:11px;margin:0 0 6px">Busca contratos aeroportuarios, pedidos de gasolinera "fantasma" e historial de entregas de cualquier jugador, sea de tu alianza o de otra.</p><div class="row"><input type="text" id="adminLookupUid" placeholder="UID del jugador" style="flex:1"><button data-action="admin-lookup-airport-contracts">🔍 Buscar</button></div><div id="adminLookupResults" style="margin-top:8px"></div></div>` : "";
             $("settingsContent").innerHTML = `
             ${state.initialized ? `<div class="card"><h3>🏢 Nombre de tu empresa</h3><p style="color:var(--muted)">Nombre actual: <strong>${escapeHtml(currentName) || "Sin nombre"}</strong></p><label><span class="label">Cambiar nombre</span><input id="companyNameInput" maxlength="40" placeholder="Ej: Transportes García, LogiSur..." value="${escapeHtml(currentName)}"></label><div class="row" style="margin-top:10px"><button class="primary" data-action="save-company-name">Guardar nombre</button></div></div>` : ""}
             ${adminPanel}
@@ -10242,14 +10254,16 @@
         // a one-time-ever popup: it shows again every time a level-2+ player starts a new session
         // (only _ratingPopupChecked guards against firing more than once within the SAME session/tick loop).
         function maybeShowRatingPopup() {
-            if (!state) return;
+            if (!state || !state.flags) return;
+            if (state.flags.ratingPopupSeenV1) return; // already rated — never show again
             if ((state.level || 1) < 2) return;
             if (_ratingPopupChecked) return;
             _ratingPopupChecked = true;
             setTimeout(() => { try { showRatingPopup(); } catch (e) { console.warn("rating popup error", e); } }, 1500);
         }
-        // One-time "thank you for playing" popup: 1-5 star rating (delivered to the admin's in-game inbox
-        // via /api/rate-game) + a WhatsApp share button.
+        // Popup shown every session (until the player rates the game): 1-5 star rating + optional short
+        // comment (delivered to the admin's in-game inbox via /api/rate-game) + a WhatsApp share button.
+        // Once the player confirms a rating, state.flags.ratingPopupSeenV1 is set and it never shows again.
         function showRatingPopup() {
             const shareText = "¡Estoy jugando a ECACH Logistic, un juego de gestión de transportes de mercancías peligrosas por carretera! Pruébalo: ecachlogistic.com";
             const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
@@ -10262,6 +10276,7 @@
                 <p style="font-size:13px;color:#ccc;margin:0 0 18px;line-height:1.4">Si te gusta el juego, ¿nos ayudas votándolo? Y si te apetece, ¡compártelo con tus amigos!</p>
                 <div id="ratingStars" style="display:flex;justify-content:center;gap:6px;margin-bottom:8px"></div>
                 <p id="ratingStatus" style="font-size:13px;color:#aaa;min-height:20px;margin:0 0 10px">Toca una estrella para elegir tu valoración</p>
+                <textarea id="ratingComment" placeholder="¿Algún comentario? (opcional)" maxlength="300" style="display:none;width:100%;box-sizing:border-box;min-height:60px;margin-bottom:10px;padding:8px;border-radius:8px;background:#111;color:#eee;border:1px solid var(--line,#444);font-size:13px;resize:vertical"></textarea>
                 <button id="ratingConfirmBtn" style="display:none;width:100%;padding:11px;background:#e8a504;color:#1a1a2e;border:none;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:14px">✅ Confirmar valoración</button>
                 <a href="${whatsappUrl}" target="_blank" rel="noopener" style="display:block;text-decoration:none;padding:12px;background:#25D366;color:#fff;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:10px">📱 Compartir por WhatsApp</a>
                 <button id="ratingCloseBtn" style="padding:10px 24px;background:transparent;color:#aaa;border:1px solid var(--line,#444);border-radius:8px;font-size:13px">Cerrar</button>
@@ -10272,6 +10287,7 @@
             const statusEl = overlay.querySelector("#ratingStatus");
             const closeBtn = overlay.querySelector("#ratingCloseBtn");
             const confirmBtn = overlay.querySelector("#ratingConfirmBtn");
+            const commentEl = overlay.querySelector("#ratingComment");
             let rated = false;
             let selected = 0;
             const starButtons = [];
@@ -10294,18 +10310,24 @@
                     paintStars(selected);
                     starButtons.forEach(b => { b.style.color = "#e8a504"; });
                     statusEl.textContent = `Has elegido ${selected} estrella${selected > 1 ? "s" : ""}. Puedes tocar otra estrella para cambiarla.`;
+                    commentEl.style.display = "block";
                     confirmBtn.style.display = "block";
                 });
             });
             confirmBtn.addEventListener("click", async () => {
                 if (rated || !selected) return;
                 rated = true;
+                // Mark as rated immediately so this never shows again, regardless of network outcome.
+                if (state.flags) state.flags.ratingPopupSeenV1 = true;
+                saveGame(true);
                 starButtons.forEach(b => { b.style.cursor = "default"; });
                 confirmBtn.disabled = true;
                 confirmBtn.style.opacity = ".6";
+                commentEl.disabled = true;
                 statusEl.textContent = "Enviando tu valoración...";
+                const comment = (commentEl.value || "").trim();
                 try {
-                    await apiCall("POST", "/api/rate-game", { stars: selected });
+                    await apiCall("POST", "/api/rate-game", { stars: selected, comment });
                     statusEl.textContent = `¡Gracias por tu valoración de ${selected} estrella${selected > 1 ? "s" : ""}!`;
                     confirmBtn.style.display = "none";
                 } catch (err) {
@@ -11617,33 +11639,6 @@
                 }).join("");
                 html += `</div>`;
             }
-            // Admin panel: only visible to the alliance owner with admin email
-            const isAdmin = fbUser?.email === "nikelaitor@hotmail.com";
-            if (isAdmin && taken.length) {
-                html += `<h4 style="margin:14px 0 6px;color:#e85d04">🔧 Admin — Forzar fix de contrato</h4><div class="stack">`;
-                html += taken.map(c => {
-                    const trips = c.tripsState || [];
-                    const done = trips.filter(t => t.status === "done").length;
-                    return `<div class="card" style="margin:0;border-color:#e85d04;background:rgba(232,93,4,.06)">
-                        <strong>${c.takenByCompany || "?"}</strong> · ${c.airport?.name || "?"} · ${done}/${c.trips} viajes
-                        <span class="muted" style="font-size:11px"> · ID: ${c.id}</span><br>
-                        <button class="danger small" style="margin-top:6px" data-action="admin-fix-airport" data-id="${c.id}" data-uid="${c.takenByUid}">🔧 Forzar completado</button>
-                    </div>`;
-                }).join("");
-                html += `</div>`;
-            }
-            // Admin panel: refund a player's weekly airport-contract limit for a specific contract (any
-            // status — taken, completed or failed) when it broke due to a game bug, not the player's fault.
-            // Looks up by player UID (not alliance-scoped), so it works even if that player is in a
-            // different alliance than the admin's own account.
-            if (isAdmin) {
-                html += `<h4 style="margin:14px 0 6px;color:#e85d04">🔍 Admin — Buscar contratos y pedidos de un jugador por ID</h4>
-                <div class="card" style="margin:0 0 10px;border-color:#e85d04;background:rgba(232,93,4,.06)">
-                    <p class="muted" style="font-size:11px;margin:0 0 6px">Busca contratos aeroportuarios Y pedidos de gasolinera "fantasma" de cualquier jugador, sea de tu alianza o de otra.</p>
-                    <div class="row"><input type="text" id="adminLookupUid" placeholder="UID del jugador" style="flex:1"><button data-action="admin-lookup-airport-contracts">🔍 Buscar</button></div>
-                    <div id="adminLookupResults" style="margin-top:8px"></div>
-                </div>`;
-            }
             el.innerHTML = html;
         }
 
@@ -12155,12 +12150,14 @@
             if (!uid) return notify("Falta el ID", "Escribe el UID del jugador.", "warn", true);
             resultsEl.innerHTML = `<p class="muted">Buscando...</p>`;
             try {
-                const [r, g] = await Promise.all([
+                const [r, g, d] = await Promise.all([
                     apiCall("GET", `/api/admin/contracts-by-uid/${encodeURIComponent(uid)}`),
-                    apiCall("GET", `/api/admin/gas-orders-by-uid/${encodeURIComponent(uid)}`).catch(() => ({ orders: [] }))
+                    apiCall("GET", `/api/admin/gas-orders-by-uid/${encodeURIComponent(uid)}`).catch(() => ({ orders: [] })),
+                    apiCall("GET", `/api/admin/delivery-log-by-uid/${encodeURIComponent(uid)}`).catch(() => ({ deliveries: [] }))
                 ]);
                 const contracts = r.contracts || [];
                 const gasOrders = g.orders || [];
+                const deliveries = d.deliveries || [];
                 let html = "";
                 html += `<h5 style="margin:10px 0 4px;color:#e85d04">✈️ Contratos aeroportuarios</h5>`;
                 if (!contracts.length) {
@@ -12189,6 +12186,15 @@
                         <span class="muted" style="font-size:11px"> · ID: ${o.id}</span><br>
                         <button class="ghost small" style="margin-top:6px" data-action="admin-cancel-gas-order" data-id="${o.id}">🗑️ Liberar / cancelar este pedido</button>
                     </div>`).join("");
+                }
+                const categoryLabels = { pedido_diario: "📦 Pedido diario", ruleta: "🎡 Ruleta", oficina_comercial: "🏢 Oficina comercial", gasolinera: "⛽ Gasolinera", contrato_aeroportuario: "✈️ Contrato aeroportuario" };
+                html += `<h5 style="margin:14px 0 4px;color:#e85d04">📜 Historial de entregas (últimos 30 días, máx. 200)</h5>`;
+                if (!deliveries.length) {
+                    html += `<p class="muted">Sin entregas registradas.</p>`;
+                } else {
+                    html += `<div class="table-wrap"><table><thead><tr><th>Fecha y hora</th><th>Categoría</th><th>Detalle</th></tr></thead><tbody>`;
+                    html += deliveries.map(dl => `<tr><td class="mono" style="font-size:12px">${fmtDate(dl.delivered_at)}</td><td style="font-size:12px">${categoryLabels[dl.category] || dl.category}</td><td style="font-size:12px">${dl.description || "-"}</td></tr>`).join("");
+                    html += `</tbody></table></div>`;
                 }
                 resultsEl.innerHTML = html;
             } catch (e) {
@@ -13229,11 +13235,23 @@
             const gasLowHudCard = document.getElementById("gasLowHudCard");
             if (gasLowHudCard) gasLowHudCard.style.display = anyLowStock ? "" : "none";
         }
+        function updateRouletteBadge() {
+            const available = !state.luckWheel?.nextSpinAt || Date.now() >= state.luckWheel.nextSpinAt;
+            const mobileRouletteHud = document.getElementById("mobileRouletteHud");
+            if (mobileRouletteHud) mobileRouletteHud.style.display = available ? "" : "none";
+            const rouletteHudCard = document.getElementById("rouletteHudCard");
+            if (rouletteHudCard) rouletteHudCard.style.display = available ? "" : "none";
+        }
         function gotoGasStationsTab(e) {
             if (e) e.stopPropagation();
             _allianceTab = "mine";
             _allianceSubTab = "gas";
             if (typeof switchSection === "function") switchSection("alliance");
+            renderAll();
+        }
+        function gotoRouletteTab(e) {
+            if (e) e.stopPropagation();
+            if (typeof switchSection === "function") switchSection("casino");
             renderAll();
         }
         const mobileRaiseHudBtn = document.getElementById("mobileRaiseHud");
@@ -13244,6 +13262,10 @@
         if (mobileGasLowHudBtn) mobileGasLowHudBtn.addEventListener("click", gotoGasStationsTab);
         const gasLowHudCardBtn = document.getElementById("gasLowHudCard");
         if (gasLowHudCardBtn) gasLowHudCardBtn.addEventListener("click", gotoGasStationsTab);
+        const mobileRouletteHudBtn = document.getElementById("mobileRouletteHud");
+        if (mobileRouletteHudBtn) mobileRouletteHudBtn.addEventListener("click", gotoRouletteTab);
+        const rouletteHudCardBtn = document.getElementById("rouletteHudCard");
+        if (rouletteHudCardBtn) rouletteHudCardBtn.addEventListener("click", gotoRouletteTab);
         if (hamburgerBtn && sidebarDrawer) {
             hamburgerBtn.addEventListener("click", e => {
                 e.stopPropagation();
