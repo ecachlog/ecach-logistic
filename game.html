@@ -499,7 +499,7 @@
                     <div class="mhud" id="mobileGasLowHud" style="display:none;background:#ff3b30;color:#fff;cursor:pointer" title="Una gasolinera de la alianza tiene menos de 10.000 litros de stock">⛽⚠️</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v6.4</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v6.9</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -527,7 +527,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v6.4</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v6.9</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -6783,7 +6783,7 @@
             // onwards (so the player has had a few days to form an opinion first). Covers both existing
             // players already at level 2+ (shown on their next load) and new level-ups (shown immediately,
             // via the same maybeShowRatingPopup() call inside upgradeCompanyLevel()).
-            if (!_ratingPopupChecked && state && state.flags && !state.flags.ratingPopupSeenV1 && (state.level || 1) >= 2) {
+            if (!_ratingPopupChecked && state && (state.level || 1) >= 2) {
                 const gate = $("authGate");
                 if (gate && gate.style.display === "none") {
                     maybeShowRatingPopup();
@@ -8673,7 +8673,7 @@
                             <div style="flex:1"><strong>${e.company}</strong>${isOnline ? ` <span style="font-size:9px;color:#35c759;vertical-align:middle">●</span>` : ""}
                             <p class="muted" style="font-size:12px;margin:2px 0 0">Nivel ${e.level} · ${e.trucks} camión${e.trucks !== 1 ? "es" : ""}</p>
                             ${(e.baseCity || e.loadPort) ? `<p class="muted" style="font-size:11px;margin:2px 0 0">${e.baseCity ? `📍 ${e.baseCity}` : ""}${e.baseCity && e.loadPort ? " · " : ""}${e.loadPort ? `⚓ ${e.loadPort}` : ""}</p>` : ""}
-                            ${isAdmin ? `<p class="muted" style="font-size:10px;margin:2px 0 0;color:#e8a504">ID ${e.uid ? e.uid.slice(0, 12) : "?"}</p>` : ""}
+                            ${isAdmin ? `<p class="muted" style="font-size:10px;margin:2px 0 0;color:#e8a504;word-break:break-all">ID ${e.uid || "?"}</p>` : ""}
                             <p class="muted" style="font-size:11px;margin:2px 0 0;color:${isOnline ? "#35c759" : "var(--muted)"}">${lastSeenText}</p></div>
                             <span class="mono" style="color:${e.balance >= 0 ? "var(--ok)" : "var(--danger)"};font-weight:700">${fmtMoney(e.balance)}</span>
                             ${e.uid && e.uid !== (fbUser?.uid) ? `<button class="ghost" style="font-size:11px;padding:6px 10px;margin-left:6px" data-action="send-player-message" data-uid="${e.uid}" data-company="${(e.company || "").replace(/"/g, "")}">✉️</button>` : ""}
@@ -10237,16 +10237,15 @@
 
         // One-time "what's new" email per release. Bump NEWS_VERSION when there's a new update to announce.
         const NEWS_VERSION = "2026-06-actualizacion-1";
-        // Centralized one-time trigger for the rating popup — called both from the general on-load checks
-        // (covers existing players already at level 2+) and from upgradeCompanyLevel() when a player freshly
-        // reaches level 2 (shown right away instead of waiting for their next reload).
+        // Trigger for the rating popup — called both from the general on-load checks and from
+        // upgradeCompanyLevel() when a player freshly reaches level 2. Per explicit request, this is NOT
+        // a one-time-ever popup: it shows again every time a level-2+ player starts a new session
+        // (only _ratingPopupChecked guards against firing more than once within the SAME session/tick loop).
         function maybeShowRatingPopup() {
-            if (!state || !state.flags || state.flags.ratingPopupSeenV1) return;
+            if (!state) return;
             if ((state.level || 1) < 2) return;
             if (_ratingPopupChecked) return;
             _ratingPopupChecked = true;
-            state.flags.ratingPopupSeenV1 = true;
-            saveGame(true);
             setTimeout(() => { try { showRatingPopup(); } catch (e) { console.warn("rating popup error", e); } }, 1500);
         }
         // One-time "thank you for playing" popup: 1-5 star rating (delivered to the admin's in-game inbox
@@ -10261,8 +10260,9 @@
             overlay.innerHTML = `<div style="background:#1a1a2e;border-radius:16px;padding:24px 20px;max-width:360px;width:100%;text-align:center;border:2px solid #e85d04;box-shadow:0 10px 40px rgba(0,0,0,.5)">
                 <h2 style="margin:0 0 10px;color:#e85d04;font-size:20px">🙏 ¡Gracias por jugar a ECACH Logistic!</h2>
                 <p style="font-size:13px;color:#ccc;margin:0 0 18px;line-height:1.4">Si te gusta el juego, ¿nos ayudas votándolo? Y si te apetece, ¡compártelo con tus amigos!</p>
-                <div id="ratingStars" style="font-size:38px;letter-spacing:6px;margin-bottom:8px;cursor:pointer">☆☆☆☆☆</div>
-                <p id="ratingStatus" style="font-size:13px;color:#aaa;min-height:20px;margin:0 0 16px">Toca una estrella para votar</p>
+                <div id="ratingStars" style="display:flex;justify-content:center;gap:6px;margin-bottom:8px"></div>
+                <p id="ratingStatus" style="font-size:13px;color:#aaa;min-height:20px;margin:0 0 10px">Toca una estrella para elegir tu valoración</p>
+                <button id="ratingConfirmBtn" style="display:none;width:100%;padding:11px;background:#e8a504;color:#1a1a2e;border:none;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:14px">✅ Confirmar valoración</button>
                 <a href="${whatsappUrl}" target="_blank" rel="noopener" style="display:block;text-decoration:none;padding:12px;background:#25D366;color:#fff;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:10px">📱 Compartir por WhatsApp</a>
                 <button id="ratingCloseBtn" style="padding:10px 24px;background:transparent;color:#aaa;border:1px solid var(--line,#444);border-radius:8px;font-size:13px">Cerrar</button>
             </div>`;
@@ -10271,29 +10271,46 @@
             const starsEl = overlay.querySelector("#ratingStars");
             const statusEl = overlay.querySelector("#ratingStatus");
             const closeBtn = overlay.querySelector("#ratingCloseBtn");
+            const confirmBtn = overlay.querySelector("#ratingConfirmBtn");
             let rated = false;
+            let selected = 0;
+            const starButtons = [];
+            for (let i = 1; i <= 5; i++) {
+                const btn = document.createElement("span");
+                btn.textContent = "☆";
+                btn.dataset.value = i;
+                btn.style.cssText = "font-size:38px;cursor:pointer;line-height:1;user-select:none";
+                starsEl.appendChild(btn);
+                starButtons.push(btn);
+            }
 
             function paintStars(count) {
-                starsEl.textContent = "★".repeat(count) + "☆".repeat(5 - count);
+                starButtons.forEach((btn, idx) => { btn.textContent = idx < count ? "★" : "☆"; });
             }
-            function starIndexFromEvent(e) {
-                const rect = starsEl.getBoundingClientRect();
-                const ratio = clamp((e.clientX - rect.left) / rect.width, 0, 1);
-                return Math.max(1, Math.min(5, Math.ceil(ratio * 5)));
-            }
-            starsEl.addEventListener("click", async e => {
-                if (rated) return;
-                const stars = starIndexFromEvent(e);
+            starButtons.forEach(btn => {
+                btn.addEventListener("click", () => {
+                    if (rated) return;
+                    selected = Number(btn.dataset.value);
+                    paintStars(selected);
+                    starButtons.forEach(b => { b.style.color = "#e8a504"; });
+                    statusEl.textContent = `Has elegido ${selected} estrella${selected > 1 ? "s" : ""}. Puedes tocar otra estrella para cambiarla.`;
+                    confirmBtn.style.display = "block";
+                });
+            });
+            confirmBtn.addEventListener("click", async () => {
+                if (rated || !selected) return;
                 rated = true;
-                paintStars(stars);
-                starsEl.style.color = "#e8a504";
-                starsEl.style.cursor = "default";
+                starButtons.forEach(b => { b.style.cursor = "default"; });
+                confirmBtn.disabled = true;
+                confirmBtn.style.opacity = ".6";
                 statusEl.textContent = "Enviando tu valoración...";
                 try {
-                    await apiCall("POST", "/api/rate-game", { stars });
-                    statusEl.textContent = `¡Gracias por tu valoración de ${stars} estrella${stars > 1 ? "s" : ""}!`;
+                    await apiCall("POST", "/api/rate-game", { stars: selected });
+                    statusEl.textContent = `¡Gracias por tu valoración de ${selected} estrella${selected > 1 ? "s" : ""}!`;
+                    confirmBtn.style.display = "none";
                 } catch (err) {
                     statusEl.textContent = "No se pudo enviar la valoración, pero ¡gracias igualmente!";
+                    confirmBtn.style.display = "none";
                 }
             });
             closeBtn.addEventListener("click", () => overlay.remove());
@@ -11516,6 +11533,22 @@
             try {
                 const r = await apiCall("GET", "/api/airport-contracts");
                 state.airportContracts = r;
+                // SELF-HEAL: if the server says a contract is taken by me, but for whatever reason (a crash
+                // right after accepting, a lost save, etc.) I have none of its orders locally, regenerate them
+                // now instead of leaving the player stuck with a "ghost" contract that used up their weekly
+                // slot but gave them nothing to actually work with.
+                const myUid = fbUser?.uid;
+                (r?.mine || []).filter(c => c.status === "taken" && c.takenByUid === myUid).forEach(c => {
+                    const hasOrders = (state.orders || []).some(o => o.airportContract && o.airportContract.contractId === c.id);
+                    const hasActiveTrip = (state.activeTrips || []).some(t => t.airportContract && t.airportContract.contractId === c.id);
+                    if (!hasOrders && !hasActiveTrip) {
+                        try {
+                            generateAirportContractOrders(c);
+                            console.warn(`[self-heal] Regenerated missing orders for airport contract ${c.id}`);
+                            saveGame(true);
+                        } catch (e) { console.error("[self-heal] failed to regenerate airport contract orders", e); }
+                    }
+                });
                 renderAirportContracts(r);
                 drawMap(true);
                 return r;
@@ -11599,6 +11632,18 @@
                 }).join("");
                 html += `</div>`;
             }
+            // Admin panel: refund a player's weekly airport-contract limit for a specific contract (any
+            // status — taken, completed or failed) when it broke due to a game bug, not the player's fault.
+            // Looks up by player UID (not alliance-scoped), so it works even if that player is in a
+            // different alliance than the admin's own account.
+            if (isAdmin) {
+                html += `<h4 style="margin:14px 0 6px;color:#e85d04">🔍 Admin — Buscar contratos y pedidos de un jugador por ID</h4>
+                <div class="card" style="margin:0 0 10px;border-color:#e85d04;background:rgba(232,93,4,.06)">
+                    <p class="muted" style="font-size:11px;margin:0 0 6px">Busca contratos aeroportuarios Y pedidos de gasolinera "fantasma" de cualquier jugador, sea de tu alianza o de otra.</p>
+                    <div class="row"><input type="text" id="adminLookupUid" placeholder="UID del jugador" style="flex:1"><button data-action="admin-lookup-airport-contracts">🔍 Buscar</button></div>
+                    <div id="adminLookupResults" style="margin-top:8px"></div>
+                </div>`;
+            }
             el.innerHTML = html;
         }
 
@@ -11662,7 +11707,15 @@
             try {
                 await apiCall("POST", `/api/airport-contracts/${id}/accept`, { roundTripKm: km, company: state.companyName || state.warehouse?.companyName || "" });
                 // Generate the contract's trips as ACCEPTED orders in the player's "Pedidos → Aceptados".
-                generateAirportContractOrders(contract);
+                try {
+                    generateAirportContractOrders(contract);
+                } catch (genErr) {
+                    console.error("generateAirportContractOrders failed after accept succeeded", genErr);
+                    notify("Contrato aceptado, pero hubo un problema", "El contrato se aceptó correctamente en el servidor, pero no se pudieron generar los pedidos en tu carpeta Aceptados. Vuelve a entrar en Alianza → Contratos aeroportuarios en unos segundos: el juego debería regenerarlos automáticamente. Si no aparecen, avisa al jefe de tu alianza.", "danger", true);
+                    saveGame(true); renderAll();
+                    loadAirportContracts();
+                    return;
+                }
                 notify("Contrato aceptado", `Has aceptado el contrato de ${contract.airport.name}. Tienes ${contract.trips} pedidos en Pedidos → Aceptados para despachar antes del ${deadlineStr}.`, "ok", true);
                 saveGame(true); renderAll();
                 loadAirportContracts();
@@ -12090,6 +12143,79 @@
                     notify("Error", r.error || "Error desconocido", "warn", true);
                 }
             } catch(e) {
+                notify("Error", e.message, "warn", true);
+            }
+        }
+
+        async function adminLookupAirportContracts() {
+            const uidInput = $("adminLookupUid");
+            const resultsEl = $("adminLookupResults");
+            if (!uidInput || !resultsEl) return;
+            const uid = uidInput.value.trim();
+            if (!uid) return notify("Falta el ID", "Escribe el UID del jugador.", "warn", true);
+            resultsEl.innerHTML = `<p class="muted">Buscando...</p>`;
+            try {
+                const [r, g] = await Promise.all([
+                    apiCall("GET", `/api/admin/contracts-by-uid/${encodeURIComponent(uid)}`),
+                    apiCall("GET", `/api/admin/gas-orders-by-uid/${encodeURIComponent(uid)}`).catch(() => ({ orders: [] }))
+                ]);
+                const contracts = r.contracts || [];
+                const gasOrders = g.orders || [];
+                let html = "";
+                html += `<h5 style="margin:10px 0 4px;color:#e85d04">✈️ Contratos aeroportuarios</h5>`;
+                if (!contracts.length) {
+                    html += `<p class="muted">Sin contratos aeroportuarios.</p>`;
+                } else {
+                    html += contracts.map(c => {
+                        let trips = [];
+                        try { trips = JSON.parse(c.trips_json || "[]"); } catch (e) { trips = []; }
+                        const done = trips.filter(t => t.status === "done").length;
+                        return `<div class="card" style="margin:6px 0;border-color:#e85d04">
+                            <strong>${c.airport_name || "?"}</strong> (${c.airport_city || "?"}) · estado: ${c.status} · ${done}/${c.trips} viajes
+                            <span class="muted" style="font-size:11px"> · ID: ${c.id}</span><br>
+                            <div class="row" style="margin-top:6px">
+                                <button class="danger small" data-action="admin-fix-airport-contract" data-id="${c.id}" data-uid="${uid}" data-trips="${c.trips}">🔧 Forzar completado</button>
+                                <button class="ghost small" data-action="admin-refund-weekly-airport" data-id="${c.id}">📅 Permitir 1 más esta semana</button>
+                            </div>
+                        </div>`;
+                    }).join("");
+                }
+                html += `<h5 style="margin:14px 0 4px;color:#e85d04">⛽ Pedidos de gasolinera</h5>`;
+                if (!gasOrders.length) {
+                    html += `<p class="muted">Sin pedidos de gasolinera.</p>`;
+                } else {
+                    html += gasOrders.map(o => `<div class="card" style="margin:6px 0;border-color:#e85d04">
+                        <strong>${o.station_name || "?"}</strong> · ${fmtLiters(o.liters)} · estado: ${o.status}${o.dispatched ? " (en ruta)" : ""}
+                        <span class="muted" style="font-size:11px"> · ID: ${o.id}</span><br>
+                        <button class="ghost small" style="margin-top:6px" data-action="admin-cancel-gas-order" data-id="${o.id}">🗑️ Liberar / cancelar este pedido</button>
+                    </div>`).join("");
+                }
+                resultsEl.innerHTML = html;
+            } catch (e) {
+                resultsEl.innerHTML = `<p class="muted">Error al buscar: ${e.message}</p>`;
+            }
+        }
+        async function adminCancelGasOrder(orderId) {
+            if (!confirm(`🗑️ ADMIN: ¿Liberar/cancelar el pedido de gasolinera #${orderId}?\n\nVuelve a quedar disponible para cualquier miembro de esa alianza (pensado para pedidos "fantasma" que un jugador aceptó pero nunca le aparecieron).\n\n¿Confirmar?`)) return;
+            try {
+                await apiCall("POST", `/api/gas-stations/orders/${orderId}/cancel-trip`, {});
+                notify("Pedido liberado", `El pedido #${orderId} ha vuelto a estar disponible.`, "ok", true);
+                adminLookupAirportContracts();
+            } catch (e) {
+                notify("Error", e.message, "warn", true);
+            }
+        }
+        async function adminRefundWeeklyAirportLimit(contractId) {
+            if (!confirm(`📅 ADMIN: ¿Permitir que el jugador dueño del contrato #${contractId} acepte 1 contrato aeroportuario más esta semana?\n\nEsto deja de contar ESTE contrato concreto para su límite semanal (pensado para cuando el contrato se rompió por un fallo del juego, no por culpa suya). El límite de 1 por semana sigue aplicando con normalidad después de eso.\n\n¿Confirmar?`)) return;
+            try {
+                const r = await apiCall("POST", "/api/admin/refund-weekly-airport-limit", { contractId });
+                if (r.ok) {
+                    notify("Límite semanal liberado", `El jugador ya puede aceptar 1 contrato aeroportuario más esta semana.`, "ok", true);
+                    loadAirportContracts();
+                } else {
+                    notify("Error", r.error || "Error desconocido", "warn", true);
+                }
+            } catch (e) {
                 notify("Error", e.message, "warn", true);
             }
         }
@@ -12658,6 +12784,9 @@
             if (action === "gas-admin-clear") return adminClearGasOrders(parseInt(btn.dataset.id, 10), btn.dataset.name);
             if (action === "gas-admin-move") return startMoveGasStation(parseInt(btn.dataset.id, 10), btn.dataset.name);
             if (action === "admin-fix-airport-contract") return adminFixAirportContract(parseInt(btn.dataset.id, 10), btn.dataset.uid, parseInt(btn.dataset.trips, 10));
+            if (action === "admin-refund-weekly-airport") return adminRefundWeeklyAirportLimit(parseInt(btn.dataset.id, 10));
+            if (action === "admin-lookup-airport-contracts") return adminLookupAirportContracts();
+            if (action === "admin-cancel-gas-order") return adminCancelGasOrder(parseInt(btn.dataset.id, 10));
             if (action === "alliance-toggle-block") return toggleBlockMember(btn.dataset.uid, btn.dataset.name, btn.dataset.blocked === "true");
             if (action === "toggle-tachograph-consult") {
                 const box = document.getElementById("tachographConsultBox");
