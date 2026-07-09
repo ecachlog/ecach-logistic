@@ -500,7 +500,7 @@
                     <div class="mhud" id="mobileRouletteHud" style="display:none;background:#35c759;color:#000;cursor:pointer" title="Tienes la ruleta disponible para tirar">🎰</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v7.6</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v7.7</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -528,7 +528,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v7.6</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v7.7</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -5503,6 +5503,14 @@
             // Route incidents
             // Special edition: still affected by external incidents (traffic, weather) but not mechanical
             const r = Math.random() * 100;
+            // 🔥 Wildfire road closure: only in summer (Jun/Jul/Aug), only office/airport orders, small chance,
+            // independent of weather. Leaves the truck stopped 4-6h — doesn't count as driving hours (it's a
+            // pause, same as every other stop), just adds a bit of real-world summer flavor.
+            const incidentMonth = new Date().getMonth(); // 0=Jan ... 5=Jun, 6=Jul, 7=Aug
+            const isSummerMonth = incidentMonth >= 5 && incidentMonth <= 7;
+            const tripOrder = trip.orderId ? state.orders.find(o => o.id === trip.orderId) : null;
+            const isOfficeOrAirportTrip = isAirportTrip || !!(tripOrder && tripOrder.officeOrder);
+            if (isSummerMonth && isOfficeOrAirportTrip && Math.random() * 100 < 0.5) return applyIncident(trip, "incendio");
             // Mechanical/breakdown types (pinchazo, averia) scaled by mechFactor
             // Accidentes also scaled by driverExpFactor — experienced drivers have fewer accidents
             // Controls, retenciones, cierres NOT affected by driver experience (external factors)
@@ -5580,6 +5588,7 @@
             if (type === "accidente") { title = "Accidente en ruta"; delayMin = rand(30, 120); message = `Retención por accidente ajeno. Retraso adicional: ${delayMin} min.`; }
             if (type === "retencion") { title = "Retención grave"; delayMin = rand(45, 120); message = `Tráfico bloqueado por meteorología adversa. Retraso: ${delayMin} min.`; }
             if (type === "cierre") { title = "Cierre de carretera"; delayMin = rand(45, 150); extraKm = rand(20, 50); message = `Cierre de vía. Desvío obligatorio: +${extraKm} km y ${delayMin} min.`; }
+            if (type === "incendio") { title = "🔥 Corte de carretera por incendio"; delayMin = rand(240, 360); message = `Un incendio forestal cercano ha obligado a cortar la vía por seguridad. ${trip.truckPlate} queda detenido ${fmtDurationHours(delayMin / 60)} hasta que se reabra la carretera. El tiempo parado no cuenta como horas de conducción del tacógrafo.`; }
             const delayMs = delayMin * 60000;
             trip.delayMs += delayMs; trip.endTs += delayMs;
             if (!Array.isArray(trip.pauses)) trip.pauses = [];
@@ -7200,7 +7209,17 @@
                 const itvDue = t.nextItv && t.nextItv <= Date.now();
                 const itvBtn = (t.itvPending || itvDue) ? `<button class="primary small" data-action="pass-itv" data-id="${t.id}" data-kind="truck">Pasar ITV (100 €)</button>` : "";
                 const reviewBtn = `<button class="small" data-action="maintain-truck" data-id="${t.id}" ${t.status !== "Base" ? "disabled" : ""}>Revisión ${t.maintenanceHours}h</button>`;
-                return `<tr><td><strong>${t.plate}</strong><br>${t.brand} ${t.model}<br><span class="muted">Km acumulados: ${fmtNum(t.km || 0)}</span></td><td>${t.acquisition === "rent" ? `Renting ${fmtMoney(t.rentMonthly)}/mes` : "Propiedad"}<br><span class="muted">Seguro: ${fmtMoney(t.insuranceMonthly || TRUCK_MONTHLY_INSURANCE)}/mes · Fin renting: ${t.rentEnd ? fmtDate(t.rentEnd) : "-"}</span></td><td>${t.consumption} L/100km<br>Depósito ${fmtLiters(t.tankCapacity)}</td><td><div class="progress"><div class="bar ${fuelPct < 20 ? "danger" : fuelPct < 45 ? "warn" : "ok"}" style="width:${fuelPct}%"></div></div>${fmtLiters(t.fuel)}<br><span style="font-size:11px;color:${adblueColor}" title="AdBlue restante">🧪 AdBlue ${adbluePct}%</span></td><td><div class="progress"><div class="bar ${t.wear > 55 ? "danger" : t.wear > 35 ? "warn" : "ok"}" style="width:${t.wear}%"></div></div>${t.wear.toFixed(1)}%</td><td>${tireBar}</td><td>${fmtDate(t.nextItv)}${t.itvPending ? '<br><span class="badge danger">Pendiente</span>' : ""}</td><td>${t.status === "Mantenimiento" ? `<span style="color:#ff8c1a;font-weight:700">🔧 En mantenimiento</span>${t.maintenanceEndTs ? `<br><span style="color:#ff8c1a;font-size:11px">Termina: ${fmtDate(t.maintenanceEndTs)}</span>` : ""}` : t.status}<br><span class="muted">${t.location || ""}</span></td><td>${reviewBtn}${tireBtn}${itvBtn}${baseAction}</td></tr>`;
+                // Order-category icon + info button for trucks currently en route
+                const activeTrip = state.activeTrips.find(tr => tr.truckId === t.id);
+                let tripCategoryIcon = "", infoBtn = "";
+                if (activeTrip) {
+                    const ord = activeTrip.orderId ? state.orders.find(o => o.id === activeTrip.orderId) : null;
+                    const catIcon = activeTrip.airportContract ? "✈️" : (ord?.gasStationOrder ? "⛽" : ord?.officeOrder ? "🏢" : ord?.rouletteContract ? "🎡" : "📦");
+                    const catLabel = activeTrip.airportContract ? "Contrato aeroportuario" : (ord?.gasStationOrder ? "Pedido de gasolinera" : ord?.officeOrder ? "Pedido de oficina comercial" : ord?.rouletteContract ? "Pedido de ruleta" : "Pedido diario");
+                    tripCategoryIcon = `<span title="${catLabel}" style="font-size:15px;margin-right:4px">${catIcon}</span>`;
+                    infoBtn = `<button class="ghost small" data-action="show-trip-info" data-trip="${activeTrip.id}" title="Ver información del viaje">ℹ️</button>`;
+                }
+                return `<tr><td><strong>${t.plate}</strong><br>${t.brand} ${t.model}<br><span class="muted">Km acumulados: ${fmtNum(t.km || 0)}</span></td><td>${t.acquisition === "rent" ? `Renting ${fmtMoney(t.rentMonthly)}/mes` : "Propiedad"}<br><span class="muted">Seguro: ${fmtMoney(t.insuranceMonthly || TRUCK_MONTHLY_INSURANCE)}/mes · Fin renting: ${t.rentEnd ? fmtDate(t.rentEnd) : "-"}</span></td><td>${t.consumption} L/100km<br>Depósito ${fmtLiters(t.tankCapacity)}</td><td><div class="progress"><div class="bar ${fuelPct < 20 ? "danger" : fuelPct < 45 ? "warn" : "ok"}" style="width:${fuelPct}%"></div></div>${fmtLiters(t.fuel)}<br><span style="font-size:11px;color:${adblueColor}" title="AdBlue restante">🧪 AdBlue ${adbluePct}%</span></td><td><div class="progress"><div class="bar ${t.wear > 55 ? "danger" : t.wear > 35 ? "warn" : "ok"}" style="width:${t.wear}%"></div></div>${t.wear.toFixed(1)}%</td><td>${tireBar}</td><td>${fmtDate(t.nextItv)}${t.itvPending ? '<br><span class="badge danger">Pendiente</span>' : ""}</td><td>${tripCategoryIcon}${t.status === "Mantenimiento" ? `<span style="color:#ff8c1a;font-weight:700">🔧 En mantenimiento</span>${t.maintenanceEndTs ? `<br><span style="color:#ff8c1a;font-size:11px">Termina: ${fmtDate(t.maintenanceEndTs)}</span>` : ""}` : t.status}<br><span class="muted">${t.location || ""}</span>${infoBtn ? `<br>${infoBtn}` : ""}</td><td>${reviewBtn}${tireBtn}${itvBtn}${baseAction}</td></tr>`;
             }).join("");
             const cisternRows = state.cisterns.map(c => {
                 const baseAction = c.acquisition === "rent" ? `<button class="danger small" data-action="finalize-renting" data-kind="cistern" data-id="${c.id}" ${c.status !== "Base" ? "disabled" : ""}>Finalizar renting</button>` : `<button class="small" data-action="sell-vehicle" data-kind="cistern" data-id="${c.id}" ${c.status !== "Base" ? "disabled" : ""}>Vender ${fmtMoney(resaleValue(c))}</button>`;
@@ -10375,6 +10394,22 @@
             const area = $("toasts"); const toast = document.createElement("div"); toast.className = `toast ${type}`; toast.innerHTML = `<h4>${title}</h4><p>${message}</p>`; area.prepend(toast); setTimeout(() => toast.remove(), 8500);
             if (modal) showModal(title, message);
         }
+        // Shows the same info as the map's truck popup, but from the Flota tab (for the "ℹ️" button).
+        function showTripInfo(tripId) {
+            const trip = state.activeTrips.find(t => t.id === tripId);
+            if (!trip) return notify("Viaje no encontrado", "Puede que ya haya llegado a base.", "warn", true);
+            const now = Date.now();
+            try {
+                const info = routeProgressInfo(trip, now);
+                const pos = tripCurrentPoint(trip, info);
+                const routeLabel = trip.routeSource === "osrm" ? "carretera real OSRM" : "estimada";
+                const driverLine = tripDriverStatusLine(trip, info);
+                const body = `<strong>${trip.external ? "Autónomo externo" : trip.truckPlate}</strong><br>${tripStatusHtml(trip, info, now)}${driverLine ? `<br>${driverLine}` : ""}${pos ? `<br>Punto: <span class="mono">${fmtCoords(pos)}</span>` : ""}<br>Ruta: ${routeLabel}<br>ETA: ${fmtDate(trip.endTs)}`;
+                showModal(`ℹ️ ${trip.external ? "Autónomo externo" : trip.truckPlate}`, body);
+            } catch (e) {
+                notify("Error", "No se pudo cargar la información del viaje.", "warn", true);
+            }
+        }
         function showModal(title, body, actions = [{ label: "Entendido", className: "primary", callback: closeModal }]) {
             $("modalTitle").textContent = title; $("modalBody").innerHTML = String(body).trim().startsWith("<") ? body : `<p>${body}</p>`; const actionsEl = $("modalActions"); actionsEl.innerHTML = "";
             actions.forEach(action => { const btn = document.createElement("button"); btn.textContent = action.label; btn.className = action.className || ""; btn.addEventListener("click", action.callback || closeModal); actionsEl.appendChild(btn); });
@@ -12801,6 +12836,7 @@
             if (action === "admin-fix-airport-contract") return adminFixAirportContract(parseInt(btn.dataset.id, 10), btn.dataset.uid, parseInt(btn.dataset.trips, 10));
             if (action === "admin-refund-weekly-airport") return adminRefundWeeklyAirportLimit(parseInt(btn.dataset.id, 10));
             if (action === "admin-lookup-airport-contracts") return adminLookupAirportContracts();
+            if (action === "show-trip-info") return showTripInfo(btn.dataset.trip);
             if (action === "admin-cancel-gas-order") return adminCancelGasOrder(parseInt(btn.dataset.id, 10));
             if (action === "alliance-toggle-block") return toggleBlockMember(btn.dataset.uid, btn.dataset.name, btn.dataset.blocked === "true");
             if (action === "toggle-tachograph-consult") {
