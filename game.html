@@ -500,7 +500,7 @@
                     <div class="mhud" id="mobileRouletteHud" style="display:none;background:#35c759;color:#000;cursor:pointer" title="Tienes la ruleta disponible para tirar">🎰</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v7.4</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v7.6</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -528,7 +528,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v7.4</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v7.6</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -12201,7 +12201,7 @@
                     html += `<p class="muted">Sin entregas registradas.</p>`;
                 } else {
                     html += `<div class="table-wrap"><table><thead><tr><th>Fecha y hora</th><th>Categoría</th><th>Detalle</th></tr></thead><tbody>`;
-                    html += deliveries.map(dl => `<tr><td class="mono" style="font-size:12px">${fmtDate(dl.delivered_at)}</td><td style="font-size:12px">${categoryLabels[dl.category] || dl.category}</td><td style="font-size:12px">${dl.description || "-"}</td></tr>`).join("");
+                    html += deliveries.map(dl => `<tr><td class="mono" style="font-size:12px">${fmtDate(Number(dl.delivered_at))}</td><td style="font-size:12px">${categoryLabels[dl.category] || dl.category}</td><td style="font-size:12px">${dl.description || "-"}</td></tr>`).join("");
                     html += `</tbody></table></div>`;
                 }
                 resultsEl.innerHTML = html;
@@ -12604,6 +12604,7 @@
         function upgradeCompanyLevel() {
             const cost = nextLevelCost();
             if (state.bank.balance < cost) return notify("Saldo insuficiente", `Subir al nivel ${state.level + 1} cuesta ${fmtMoney(cost)}.`, "danger", true);
+            if (!confirm(`¿Confirmas subir al nivel ${state.level + 1}?\n\n💵 Coste: ${fmtMoney(cost)} (se cobra ahora)\n💰 Saldo actual: ${fmtMoney(state.bank.balance)}\n💰 Saldo tras subir: ${fmtMoney(state.bank.balance - cost)}\n📦 Pedidos máximos: ${orderLimitForLevel(state.level + 1)}\n\n¿Confirmar?`)) return;
             const oldLevel = state.level;
             addMovement("expense", `Subida de nivel ${oldLevel} → ${oldLevel + 1}`, -cost);
             state.level++;
