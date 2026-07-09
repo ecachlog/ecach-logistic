@@ -500,7 +500,7 @@
                     <div class="mhud" id="mobileRouletteHud" style="display:none;background:#35c759;color:#000;cursor:pointer" title="Tienes la ruleta disponible para tirar">🎰</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v7.7</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v7.8</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -528,7 +528,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v7.7</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v7.8</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -7185,17 +7185,20 @@
                     }
                     const destCountry = orderClient?.country || order?.destination?.country || "";
                     const dest = `${destCity}${destCountry ? " (" + destCountry + ")" : ""}`;
+                    const catIcon = trip.airportContract ? "✈️" : (order?.gasStationOrder ? "⛽" : order?.officeOrder ? "🏢" : order?.rouletteContract ? "🎡" : "📦");
+                    const catLabel = trip.airportContract ? "Contrato aeroportuario" : (order?.gasStationOrder ? "Pedido de gasolinera" : order?.officeOrder ? "Pedido de oficina comercial" : order?.rouletteContract ? "Pedido de ruleta" : "Pedido diario");
                     return `<tr>
-                        <td class="mono">${orderNum}</td>
+                        <td class="mono"><span title="${catLabel}" style="margin-right:4px">${catIcon}</span>${orderNum}</td>
                         <td>${dest}</td>
                         <td class="mono">${trip.truckPlate || "—"}</td>
                         <td class="mono">${trip.cisternPlate || "—"}</td>
                         <td>${drivers}</td>
                         <td>${phase}</td>
                         <td class="mono">${eta}</td>
+                        <td><button class="ghost small" data-action="show-trip-info" data-trip="${trip.id}" title="Ver información del viaje">ℹ️</button></td>
                     </tr>`;
                 }).join("");
-                return `<h3>🗺️ Vehículos en ruta</h3><div class="table-wrap"><table><thead><tr><th>Pedido</th><th>Destino</th><th>Tractora</th><th>Cisterna</th><th>Conductor(es)</th><th>Actividad</th><th>ETA base</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+                return `<h3>🗺️ Vehículos en ruta</h3><div class="table-wrap"><table><thead><tr><th>Pedido</th><th>Destino</th><th>Tractora</th><th>Cisterna</th><th>Conductor(es)</th><th>Actividad</th><th>ETA base</th><th>Info</th></tr></thead><tbody>${rows}</tbody></table></div>`;
             })() : "";
             const truckRows = state.fleet.map(t => {
                 const fuelPct = t.fuel / t.tankCapacity * 100;
@@ -13296,7 +13299,7 @@
         }
         function gotoRouletteTab(e) {
             if (e) e.stopPropagation();
-            if (typeof switchSection === "function") switchSection("casino");
+            if (typeof switchSection === "function") switchSection("wheel");
             renderAll();
         }
         const mobileRaiseHudBtn = document.getElementById("mobileRaiseHud");
