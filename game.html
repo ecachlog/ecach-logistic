@@ -500,7 +500,7 @@
                     <div class="mhud" id="mobileRouletteHud" style="display:none;background:#35c759;color:#000;cursor:pointer" title="Tienes la ruleta disponible para tirar">🎰</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v7.9</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v8.0</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -528,7 +528,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v7.9</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v8.0</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -6774,6 +6774,7 @@
         let _newsChecked = false;
         let _lawsuitFineNoticeChecked = false;
         let _ratingPopupChecked = false;
+        let _airportSelfHealChecked = false;
         function tick() {
             if (window._resumeCheckInProgress) return; // avoid racing with the async cloud-freshness check on resume
             const now = Date.now();
@@ -6814,6 +6815,17 @@
                 const gate = $("authGate");
                 if (gate && gate.style.display === "none") {
                     maybeShowRatingPopup();
+                }
+            }
+            // Airport-contract self-heal (ghost orders from force-completed contracts, missing orders from a
+            // crashed accept, etc.) — run once per session right on load, WITHOUT requiring the player to
+            // visit Alliance → Contratos aeroportuarios first (loadAirportContracts is otherwise only called
+            // from that screen).
+            if (!_airportSelfHealChecked && fbUser && state) {
+                const gate = $("authGate");
+                if (gate && gate.style.display === "none") {
+                    _airportSelfHealChecked = true;
+                    if (typeof loadAirportContracts === "function") loadAirportContracts().catch(() => {});
                 }
             }
             // Surprise weekly bulk fuel offer email (once on the offer day)
