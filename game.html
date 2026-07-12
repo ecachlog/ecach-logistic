@@ -500,7 +500,7 @@
                     <div class="mhud" id="mobileRouletteHud" style="display:none;background:#35c759;color:#000;cursor:pointer" title="Tienes la ruleta disponible para tirar">🎰</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v8.0</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v8.1</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -528,7 +528,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v8.0</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v8.1</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -5430,8 +5430,9 @@
         function currentRouteFuelPrice() {
             const prices = currentFuelProviders().map(provider => Number(provider.price)).filter(Number.isFinite);
             const base = prices.length ? Math.max(...prices) : AVG_DIESEL_PRICE;
-            // Route refueling is 30% more expensive than self-consumption to encourage refueling at the player's own depot
-            return Math.round(base * 1.30 * 100) / 100;
+            // Route refueling is 43% more expensive than self-consumption (was 30%, +10% increase requested
+            // on top of that) to encourage refueling at the player's own depot.
+            return Math.round(base * 1.43 * 100) / 100;
         }
 
         function rollRouteIncident(trip) {
@@ -9248,6 +9249,14 @@
                     </div>
                     <p class="muted" style="font-size:12px">Cuánto ha aportado cada miembro al fondo común esta semana (0,001€/km). Se reinicia cada lunes a las 00:00. Solo lo veis los miembros de la alianza. No afecta al saldo total acumulado de la alianza.</p>
                     <div id="weeklyRankingList"><p class="muted">Pulsa "Actualizar" para ver el ranking de esta semana.</p></div>
+                </div>
+                <div class="card">
+                    <div class="row" style="justify-content:space-between;align-items:center">
+                        <h3 style="margin:0">🏆 Ranking histórico (Salón de la fama)</h3>
+                        <button class="ghost small" data-action="refresh-hall-of-fame">🔄 Actualizar</button>
+                    </div>
+                    <p class="muted" style="font-size:12px">+1 punto cada semana que un miembro termina 1º en el ranking semanal de céntimos aportados. A diferencia del ranking semanal, este no se reinicia nunca — es el histórico de toda la alianza.</p>
+                    <div id="hallOfFameList"><p class="muted">Pulsa "Actualizar" para ver el histórico.</p></div>
                 </div>`;
 
             el.innerHTML = `
@@ -9291,6 +9300,8 @@
             `;
             // Auto-load weekly ranking
             refreshWeeklyRanking();
+            // Auto-load hall of fame (long-term ranking)
+            refreshHallOfFame();
             // Auto-load gas stations + their orders
             refreshGasStationsPanel();
             // Auto-load airport contracts if the office is built
@@ -9417,6 +9428,28 @@
                     </div>`).join("")}</div>`;
             } catch (e) {
                 if (el) el.innerHTML = `<p class="muted">Error al cargar el ranking.</p>`;
+            }
+        }
+        async function refreshHallOfFame() {
+            const el = document.getElementById("hallOfFameList");
+            if (el) el.innerHTML = `<p class="muted">Cargando...</p>`;
+            try {
+                const r = await apiCall("GET", "/api/alliances/hall-of-fame");
+                const ranking = r.ranking || [];
+                if (!el) return;
+                if (!ranking.length) {
+                    el.innerHTML = `<p class="muted">Todavía no se ha completado ninguna semana. El primer punto se otorgará al terminar la semana en curso.</p>`;
+                    return;
+                }
+                const medals = ["🥇", "🥈", "🥉"];
+                el.innerHTML = `<div class="stack">${ranking.map((m, i) => `
+                    <div style="display:flex;align-items:center;gap:10px;padding:8px;border-bottom:1px solid var(--line)">
+                        <span style="font-size:18px;min-width:30px;text-align:center">${medals[i] || `#${i+1}`}</span>
+                        <span style="flex:1">${m.company}</span>
+                        <span class="mono" style="color:#e8a504;font-weight:700">${m.points} 🏆</span>
+                    </div>`).join("")}</div>`;
+            } catch (e) {
+                if (el) el.innerHTML = `<p class="muted">Error al cargar el histórico.</p>`;
             }
         }
 
@@ -12839,6 +12872,7 @@
             if (action === "take-shared-trip") return takeSharedTrip(parseInt(btn.dataset.id, 10));
             if (action === "refresh-shared-trips") return refreshSharedTrips();
             if (action === "refresh-weekly-ranking") return refreshWeeklyRanking();
+            if (action === "refresh-hall-of-fame") return refreshHallOfFame();
             if (action === "build-gas-station") return startBuildGasStation();
             if (action === "refresh-gas-stations") return refreshGasStationsPanel();
             if (action === "cleanup-gas-orders") return cleanupGasOrders();
