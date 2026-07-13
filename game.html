@@ -500,7 +500,7 @@
                     <div class="mhud" id="mobileRouletteHud" style="display:none;background:#35c759;color:#000;cursor:pointer" title="Tienes la ruleta disponible para tirar">🎰</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v8.1</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v8.3</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -528,7 +528,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v8.1</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v8.3</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -12724,10 +12724,9 @@
                 showModal("⚠️ ¡Aprovecha el precio de las oficinas!", `Has llegado al nivel 4. <strong>En cuanto subas al nivel 5, construir cada oficina comercial pasará de ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST)} a ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST_L5)}.</strong><br><br>${officesLeft > 0 ? `Todavía puedes construir <strong>${officesLeft} oficina(s)</strong> al precio reducido de ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST)}. Te recomendamos construir todas las que necesites <strong>ANTES de subir al nivel 5</strong> para ahorrar.` : "Ya tienes construidas todas tus oficinas disponibles para este nivel."}`);
             }
             if (state.level === 5) {
-                state.bank.balance += 10000;
-                addMovement("income", "Subvención de transporte concedida", 10000);
-                addEmail("ayudas@mitma.eu", "🏛️ Subvención de transporte concedida", `Estimada empresa,\n\nEn el marco del programa de ayudas del Ministerio de Transportes para el fomento de empresas logísticas en expansión, se le ha concedido una subvención de ${fmtMoney(10000)}, ya ingresada en su cuenta bancaria.\n\nEnhorabuena por el crecimiento de su empresa.`, "finance");
-                showModal("📈 Oficinas comerciales más caras · 🏛️ Ayuda del Estado", `Has llegado al nivel 5. A partir de ahora, construir una oficina comercial cuesta ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST_L5)} (antes ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST)}). El coste de gestión mensual sigue siendo ${fmtMoney(COMMERCIAL_OFFICE_MONTHLY_COST)}/mes. Las oficinas que ya tengas construidas no se ven afectadas; solo las nuevas.<br><br>⚠️ <strong>Aviso:</strong> en cuanto subas al nivel 6, el coste de construcción volverá a subir mucho, hasta ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST_L6)} por oficina. Si necesitas más oficinas, considera construirlas antes de subir de nivel 6.<hr style="margin:14px 0;border-color:var(--line)"><strong>🏛️ Ayuda del Estado a empresas de transporte</strong><br><br>El Gobierno ha lanzado un programa de ayudas para apoyar a las empresas de transporte en expansión. Como reconocimiento a tu crecimiento, <strong>el Estado ingresa ${fmtMoney(10000)} en tu cuenta</strong>.<br><br>💰 Saldo actualizado: ${fmtMoney(state.bank.balance)}`);
+                addMovement("income", "Subvención de transporte concedida", 20000);
+                addEmail("ayudas@mitma.eu", "🏛️ Subvención de transporte concedida", `Estimada empresa,\n\nEn el marco del programa de ayudas del Ministerio de Transportes para el fomento de empresas logísticas en expansión, se le ha concedido una subvención de ${fmtMoney(20000)}, ya ingresada en su cuenta bancaria.\n\nEnhorabuena por el crecimiento de su empresa.`, "finance");
+                showModal("📈 Oficinas comerciales más caras · 🏛️ Ayuda del Estado", `Has llegado al nivel 5. A partir de ahora, construir una oficina comercial cuesta ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST_L5)} (antes ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST)}). El coste de gestión mensual sigue siendo ${fmtMoney(COMMERCIAL_OFFICE_MONTHLY_COST)}/mes. Las oficinas que ya tengas construidas no se ven afectadas; solo las nuevas.<br><br>⚠️ <strong>Aviso:</strong> en cuanto subas al nivel 6, el coste de construcción volverá a subir mucho, hasta ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST_L6)} por oficina. Si necesitas más oficinas, considera construirlas antes de subir de nivel 6.<hr style="margin:14px 0;border-color:var(--line)"><strong>🏛️ Ayuda del Estado a empresas de transporte</strong><br><br>El Gobierno ha lanzado un programa de ayudas para apoyar a las empresas de transporte en expansión. Como reconocimiento a tu crecimiento, <strong>el Estado ingresa ${fmtMoney(20000)} en tu cuenta</strong>.<br><br>💰 Saldo actualizado: ${fmtMoney(state.bank.balance)}`);
             }
             if (state.level === 6) showModal("📈📈 Oficinas comerciales mucho más caras", `Has llegado al nivel 6. A partir de ahora, construir una oficina comercial cuesta ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST_L6)} (antes ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST_L5)}). El coste de gestión mensual sigue siendo el mismo, ${fmtMoney(COMMERCIAL_OFFICE_MONTHLY_COST)}/mes — solo sube el coste de construcción. Las oficinas que ya tengas construidas no se ven afectadas; solo las nuevas.`);
             if (state.level === 3) showModal("Banco desbloqueado", "Ya puedes solicitar financiacion bancaria hasta 100.000 euros vivos con interes alto mensual.");
