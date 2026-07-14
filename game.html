@@ -500,7 +500,7 @@
                     <div class="mhud" id="mobileRouletteHud" style="display:none;background:#35c759;color:#000;cursor:pointer" title="Tienes la ruleta disponible para tirar">🎰</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v8.3</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v8.4</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -528,7 +528,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v8.3</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v8.4</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -4979,13 +4979,22 @@
                     accKm().catch(() => setTimeout(() => accKm().catch(() => setTimeout(() => accKm().catch(() => {}), 15000)), 5000));
                 }
                 // Mark the contract trip as done on the backend (pays 1000€ to alliance private fund)
-                // and pay the player — all happens when the truck reaches base.
-                apiCall("POST", `/api/airport-contracts/${ac.contractId}/trip`, { tripN: ac.tripN, state: "done", company: state.companyName || state.warehouse?.companyName || "" })
+                // and pay the player — all happens when the truck reaches base. Retry up to 3 times on
+                // failure (same pattern as accumulate-km above) — this call silently failing used to leave
+                // the alliance showing 0/X forever even though the player genuinely delivered the trip.
+                const markTripDone = () => apiCall("POST", `/api/airport-contracts/${ac.contractId}/trip`, { tripN: ac.tripN, state: "done", company: state.companyName || state.warehouse?.companyName || "" });
+                markTripDone()
                     .then(res => {
                         if (res && res.contractCompleted) notify("¡Contrato completado!", "Has entregado todos los viajes del contrato. Tu alianza ha recibido su recompensa.", "ok", true);
                         loadAirportContracts && loadAirportContracts();
                     })
-                    .catch(() => {});
+                    .catch(() => setTimeout(() => markTripDone().then(res => { if (res && res.contractCompleted) notify("¡Contrato completado!", "Has entregado todos los viajes del contrato. Tu alianza ha recibido su recompensa.", "ok", true); loadAirportContracts && loadAirportContracts(); }).catch(() => setTimeout(() => markTripDone().then(() => loadAirportContracts && loadAirportContracts()).catch(() => {
+                        // Last resort after 3 failed attempts: remember locally so the next self-heal pass
+                        // (loadAirportContracts) can retry again later instead of losing this delivery forever.
+                        if (!Array.isArray(state.pendingAirportTripAcks)) state.pendingAirportTripAcks = [];
+                        state.pendingAirportTripAcks.push({ contractId: ac.contractId, tripN: ac.tripN, company: state.companyName || state.warehouse?.companyName || "" });
+                        saveGame(true);
+                    }), 15000)), 5000));
                 state.tripsCompleted = (state.tripsCompleted || 0) + 1;
                 state.revenueTotal = (state.revenueTotal || 0) + pay;
                 state.xp = (state.xp || 0) + Math.round(pay / 1000) + 5;
@@ -11644,6 +11653,18 @@
 
         async function loadAirportContracts() {
             try {
+                // Retry any trip completions that failed to reach the server after 3 attempts (see
+                // completeTrip's airport-contract branch). Runs first so the fetch right after reflects them.
+                if (Array.isArray(state.pendingAirportTripAcks) && state.pendingAirportTripAcks.length) {
+                    const stillPending = [];
+                    for (const ack of state.pendingAirportTripAcks) {
+                        try {
+                            await apiCall("POST", `/api/airport-contracts/${ack.contractId}/trip`, { tripN: ack.tripN, state: "done", company: ack.company || "" });
+                        } catch (e) { stillPending.push(ack); }
+                    }
+                    state.pendingAirportTripAcks = stillPending;
+                    saveGame(true);
+                }
                 const r = await apiCall("GET", "/api/airport-contracts");
                 state.airportContracts = r;
                 // SELF-HEAL: if the server says a contract is taken by me, but for whatever reason (a crash
