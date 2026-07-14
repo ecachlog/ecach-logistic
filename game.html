@@ -500,7 +500,7 @@
                     <div class="mhud" id="mobileRouletteHud" style="display:none;background:#35c759;color:#000;cursor:pointer" title="Tienes la ruleta disponible para tirar">🎰</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v8.4</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v8.5</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -528,7 +528,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v8.4</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v8.5</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -12285,14 +12285,16 @@
             if (!uid) return notify("Falta el ID", "Escribe el UID del jugador.", "warn", true);
             resultsEl.innerHTML = `<p class="muted">Buscando...</p>`;
             try {
-                const [r, g, d] = await Promise.all([
+                const [r, g, d, f] = await Promise.all([
                     apiCall("GET", `/api/admin/contracts-by-uid/${encodeURIComponent(uid)}`),
                     apiCall("GET", `/api/admin/gas-orders-by-uid/${encodeURIComponent(uid)}`).catch(() => ({ orders: [] })),
-                    apiCall("GET", `/api/admin/delivery-log-by-uid/${encodeURIComponent(uid)}`).catch(() => ({ deliveries: [] }))
+                    apiCall("GET", `/api/admin/delivery-log-by-uid/${encodeURIComponent(uid)}`).catch(() => ({ deliveries: [] })),
+                    apiCall("GET", `/api/admin/finance-by-uid/${encodeURIComponent(uid)}`).catch(() => ({ movements: [], balance: null }))
                 ]);
                 const contracts = r.contracts || [];
                 const gasOrders = g.orders || [];
                 const deliveries = d.deliveries || [];
+                const movements = f.movements || [];
                 let html = "";
                 html += `<h5 style="margin:10px 0 4px;color:#e85d04">✈️ Contratos aeroportuarios</h5>`;
                 if (!contracts.length) {
@@ -12329,6 +12331,15 @@
                 } else {
                     html += `<div class="table-wrap"><table><thead><tr><th>Fecha y hora</th><th>Categoría</th><th>Detalle</th></tr></thead><tbody>`;
                     html += deliveries.map(dl => `<tr><td class="mono" style="font-size:12px">${fmtDate(Number(dl.delivered_at))}</td><td style="font-size:12px">${categoryLabels[dl.category] || dl.category}</td><td style="font-size:12px">${dl.description || "-"}</td></tr>`).join("");
+                    html += `</tbody></table></div>`;
+                }
+                html += `<h5 style="margin:14px 0 4px;color:#e85d04">💰 Movimientos bancarios${f.balance != null ? ` (saldo actual: ${fmtMoney(f.balance)})` : ""}</h5>`;
+                html += `<p class="muted" style="font-size:11px;margin:0 0 6px">Historial ya ocurrido, no es el calendario de cobros futuros — eso se calcula en vivo en la partida del jugador, a partir de su plantilla y su flota.</p>`;
+                if (!movements.length) {
+                    html += `<p class="muted">Sin movimientos.</p>`;
+                } else {
+                    html += `<div class="table-wrap"><table><thead><tr><th>Fecha y hora</th><th>Concepto</th><th>Importe</th><th>Saldo tras</th></tr></thead><tbody>`;
+                    html += movements.map(m => `<tr><td class="mono" style="font-size:12px">${fmtDate(Number(m.ts))}</td><td style="font-size:12px">${m.label || "-"}</td><td class="mono" style="font-size:12px;color:${m.amount < 0 ? "#ff3b30" : "#35c759"}">${m.amount >= 0 ? "+" : ""}${fmtMoney(m.amount)}</td><td class="mono" style="font-size:12px">${fmtMoney(m.balanceAfter)}</td></tr>`).join("");
                     html += `</tbody></table></div>`;
                 }
                 resultsEl.innerHTML = html;
