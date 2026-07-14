@@ -3786,7 +3786,12 @@
             if (state.officeOrdersGeneratedDay !== state.dailyOrderDay) {
                 const activeOffices = (state.commercialOffices || []).filter(o => !o.blockedUntilTs || now >= o.blockedUntilTs);
                 activeOffices.forEach(office => {
-                    const officeTarget = rand(1, 2); // independent target per office, never shared with others
+                    // Offices with the old, wider price range (2.0-4.0€/km, before the price tiers existed)
+                    // skew towards generating only 1 order/day most of the time instead of an even 50/50
+                    // split with 2 — reduces exposure to their bigger per-km payouts on long routes, without
+                    // touching the price itself (which is already naturally variable day to day).
+                    const isLegacyPricing = typeof office.priceKmMax !== "number" || office.priceKmMax > 3;
+                    const officeTarget = isLegacyPricing ? (Math.random() < 0.75 ? 1 : 2) : rand(1, 2);
                     let madeForThisOffice = 0;
                     let officeGuard = 0;
                     while (madeForThisOffice < officeTarget && officeGuard++ < 20) {
