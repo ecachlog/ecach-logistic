@@ -500,7 +500,7 @@
                     <div class="mhud" id="mobileRouletteHud" style="display:none;background:#35c759;color:#000;cursor:pointer" title="Tienes la ruleta disponible para tirar">🎰</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v8.5</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v8.6</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -528,7 +528,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v8.5</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v8.6</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -2354,6 +2354,14 @@
             // (or don't), it goes back to normal: shown every session until rated, never again after.
             if (!state.flags._ratingPopupResetV2) {
                 state.flags._ratingPopupResetV2 = true;
+                state.flags.ratingPopupSeenV1 = false;
+            }
+            // Another one-time reset: the popup is now mandatory (rating + written opinion required, can't
+            // be dismissed without both) — show it again to EVERYONE once more, including those who already
+            // rated before under the old optional version. This is also how we silently confirm this update
+            // reached a player, without bumping the visible version number.
+            if (!state.flags._ratingPopupResetV3) {
+                state.flags._ratingPopupResetV3 = true;
                 state.flags.ratingPopupSeenV1 = false;
             }
             if (!state._kmMigrationV3) {
@@ -5526,6 +5534,9 @@
             const tripOrder = trip.orderId ? state.orders.find(o => o.id === trip.orderId) : null;
             const isOfficeOrAirportTrip = isAirportTrip || !!(tripOrder && tripOrder.officeOrder);
             if (isSummerMonth && isOfficeOrAirportTrip && Math.random() * 100 < 0.5) return applyIncident(trip, "incendio");
+            // ⛽🚨 Fuel theft: rare, can happen on any trip, any time of year — someone siphons the tank while
+            // the truck is stopped/parked along the route.
+            if (Math.random() * 100 < 0.15) return applyIncident(trip, "robo-gasoil");
             // Mechanical/breakdown types (pinchazo, averia) scaled by mechFactor
             // Accidentes also scaled by driverExpFactor — experienced drivers have fewer accidents
             // Controls, retenciones, cierres NOT affected by driver experience (external factors)
@@ -5604,6 +5615,12 @@
             if (type === "retencion") { title = "Retención grave"; delayMin = rand(45, 120); message = `Tráfico bloqueado por meteorología adversa. Retraso: ${delayMin} min.`; }
             if (type === "cierre") { title = "Cierre de carretera"; delayMin = rand(45, 150); extraKm = rand(20, 50); message = `Cierre de vía. Desvío obligatorio: +${extraKm} km y ${delayMin} min.`; }
             if (type === "incendio") { title = "🔥 Corte de carretera por incendio"; delayMin = rand(240, 360); message = `Un incendio forestal cercano ha obligado a cortar la vía por seguridad. ${trip.truckPlate} queda detenido ${fmtDurationHours(delayMin / 60)} hasta que se reabra la carretera. El tiempo parado no cuenta como horas de conducción del tacógrafo.`; }
+            if (type === "robo-gasoil") {
+                title = "⛽🚨 Robo de combustible";
+                delayMin = rand(10, 20);
+                if (truck) truck.fuel = 0; // triggers the existing "runs dry mid-route" auto-refuel + invoice on the next tick
+                message = `Le han robado el gasoil del depósito a ${trip.truckPlate} mientras estaba parado. El depósito ha quedado a 0 y repostará automáticamente en la próxima gasolinera de ruta, generando la factura correspondiente.`;
+            }
             const delayMs = delayMin * 60000;
             trip.delayMs += delayMs; trip.endTs += delayMs;
             if (!Array.isArray(trip.pauses)) trip.pauses = [];
@@ -10349,31 +10366,33 @@
             _ratingPopupChecked = true;
             setTimeout(() => { try { showRatingPopup(); } catch (e) { console.warn("rating popup error", e); } }, 1500);
         }
-        // Popup shown every session (until the player rates the game): 1-5 star rating + optional short
-        // comment (delivered to the admin's in-game inbox via /api/rate-game) + a WhatsApp share button.
-        // Once the player confirms a rating, state.flags.ratingPopupSeenV1 is set and it never shows again.
+        // Popup shown every session (until the player rates AND writes a comment). This one is mandatory:
+        // there is no "close" button, it can't be dismissed without submitting both a star rating and a
+        // short opinion. WhatsApp sharing stays fully optional, just suggested. Delivered to the admin's
+        // in-game inbox via /api/rate-game. Once confirmed, state.flags.ratingPopupSeenV1 is set and it
+        // never shows again.
         function showRatingPopup() {
             const shareText = "¡Estoy jugando a ECACH Logistic, un juego de gestión de transportes de mercancías peligrosas por carretera! Pruébalo: ecachlogistic.com";
             const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
 
             const overlay = document.createElement("div");
             overlay.id = "ratingPopupOverlay";
-            overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px";
+            overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px";
             overlay.innerHTML = `<div style="background:#1a1a2e;border-radius:16px;padding:24px 20px;max-width:360px;width:100%;text-align:center;border:2px solid #e85d04;box-shadow:0 10px 40px rgba(0,0,0,.5)">
                 <h2 style="margin:0 0 10px;color:#e85d04;font-size:20px">🙏 ¡Gracias por jugar a ECACH Logistic!</h2>
-                <p style="font-size:13px;color:#ccc;margin:0 0 18px;line-height:1.4">Si te gusta el juego, ¿nos ayudas votándolo? Y si te apetece, ¡compártelo con tus amigos!</p>
+                <p style="font-size:13px;color:#ccc;margin:0 0 14px;line-height:1.4">Antes de seguir jugando, necesitamos que valores el juego y nos cuentes brevemente tu opinión — nos ayuda muchísimo a mejorar.</p>
+                <p style="font-size:12px;color:#e8a504;margin:0 0 14px;line-height:1.4;background:rgba(232,165,4,.1);border:1px solid rgba(232,165,4,.3);border-radius:8px;padding:8px">⚠️ Para poder continuar jugando tienes que <strong>elegir de 1 a 5 estrellas</strong> y <strong>escribir tu opinión</strong> en el cuadro de texto. Solo entonces se activará el botón para enviarlo.</p>
                 <div id="ratingStars" style="display:flex;justify-content:center;gap:6px;margin-bottom:8px"></div>
                 <p id="ratingStatus" style="font-size:13px;color:#aaa;min-height:20px;margin:0 0 10px">Toca una estrella para elegir tu valoración</p>
-                <textarea id="ratingComment" placeholder="¿Algún comentario? (opcional)" maxlength="300" style="display:none;width:100%;box-sizing:border-box;min-height:60px;margin-bottom:10px;padding:8px;border-radius:8px;background:#111;color:#eee;border:1px solid var(--line,#444);font-size:13px;resize:vertical"></textarea>
-                <button id="ratingConfirmBtn" style="display:none;width:100%;padding:11px;background:#e8a504;color:#1a1a2e;border:none;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:14px">✅ Confirmar valoración</button>
-                <a href="${whatsappUrl}" target="_blank" rel="noopener" style="display:block;text-decoration:none;padding:12px;background:#25D366;color:#fff;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:10px">📱 Compartir por WhatsApp</a>
-                <button id="ratingCloseBtn" style="padding:10px 24px;background:transparent;color:#aaa;border:1px solid var(--line,#444);border-radius:8px;font-size:13px">Cerrar</button>
+                <textarea id="ratingComment" placeholder="Cuéntanos tu opinión sobre el juego (obligatorio)" maxlength="300" style="width:100%;box-sizing:border-box;min-height:70px;margin-bottom:10px;padding:8px;border-radius:8px;background:#111;color:#eee;border:1px solid var(--line,#444);font-size:13px;resize:vertical"></textarea>
+                <button id="ratingConfirmBtn" style="width:100%;padding:11px;background:#e8a504;color:#1a1a2e;border:none;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:14px;opacity:.5" disabled>✅ Enviar valoración y opinión</button>
+                <p style="font-size:12px;color:#ccc;margin:0 0 8px">¿Nos ayudas a que seamos más jugadores? (esto es opcional)</p>
+                <a href="${whatsappUrl}" target="_blank" rel="noopener" style="display:block;text-decoration:none;padding:12px;background:#25D366;color:#fff;border-radius:10px;font-weight:700;font-size:14px">📱 Compartir por WhatsApp</a>
             </div>`;
             document.body.appendChild(overlay);
 
             const starsEl = overlay.querySelector("#ratingStars");
             const statusEl = overlay.querySelector("#ratingStatus");
-            const closeBtn = overlay.querySelector("#ratingCloseBtn");
             const confirmBtn = overlay.querySelector("#ratingConfirmBtn");
             const commentEl = overlay.querySelector("#ratingComment");
             let rated = false;
@@ -10391,40 +10410,47 @@
             function paintStars(count) {
                 starButtons.forEach((btn, idx) => { btn.textContent = idx < count ? "★" : "☆"; });
             }
+            function updateConfirmState() {
+                const ready = selected > 0 && commentEl.value.trim().length > 0;
+                confirmBtn.disabled = !ready;
+                confirmBtn.style.opacity = ready ? "1" : ".5";
+            }
             starButtons.forEach(btn => {
                 btn.addEventListener("click", () => {
                     if (rated) return;
                     selected = Number(btn.dataset.value);
                     paintStars(selected);
                     starButtons.forEach(b => { b.style.color = "#e8a504"; });
-                    statusEl.textContent = `Has elegido ${selected} estrella${selected > 1 ? "s" : ""}. Puedes tocar otra estrella para cambiarla.`;
-                    commentEl.style.display = "block";
-                    confirmBtn.style.display = "block";
+                    statusEl.textContent = `Has elegido ${selected} estrella${selected > 1 ? "s" : ""}. Escribe también tu opinión abajo para poder enviarlo.`;
+                    updateConfirmState();
                 });
             });
+            commentEl.addEventListener("input", updateConfirmState);
             confirmBtn.addEventListener("click", async () => {
-                if (rated || !selected) return;
+                if (rated || !selected || !commentEl.value.trim()) return;
                 rated = true;
                 starButtons.forEach(b => { b.style.cursor = "default"; });
                 confirmBtn.disabled = true;
                 confirmBtn.style.opacity = ".6";
                 commentEl.disabled = true;
                 statusEl.textContent = "Enviando tu valoración...";
-                const comment = (commentEl.value || "").trim();
+                const comment = commentEl.value.trim();
                 try {
                     await apiCall("POST", "/api/rate-game", { stars: selected, comment });
                     // Only mark as rated (never show again) once the submission actually succeeded.
                     if (state.flags) state.flags.ratingPopupSeenV1 = true;
                     saveGame(true);
-                    statusEl.textContent = `¡Gracias por tu valoración de ${selected} estrella${selected > 1 ? "s" : ""}!`;
-                    confirmBtn.style.display = "none";
+                    statusEl.textContent = `¡Gracias por tu valoración de ${selected} estrella${selected > 1 ? "s" : ""} y tu opinión!`;
+                    confirmBtn.textContent = "✅ ¡Enviado!";
+                    setTimeout(() => overlay.remove(), 1400);
                 } catch (err) {
                     // Do NOT mark as rated — the popup will ask again next session, as if nothing happened.
-                    statusEl.textContent = `No se pudo enviar la valoración (${err.message || "error desconocido"}). Te lo volveremos a preguntar la próxima vez que abras el juego.`;
-                    confirmBtn.style.display = "none";
+                    rated = false;
+                    commentEl.disabled = false;
+                    updateConfirmState();
+                    statusEl.textContent = `No se pudo enviar (${err.message || "error desconocido"}). Inténtalo otra vez.`;
                 }
             });
-            closeBtn.addEventListener("click", () => overlay.remove());
         }
         function maybeSendNewsEmail() {
             if (!state) return;
@@ -12767,6 +12793,16 @@
             }
             if (state.level === 6) showModal("📈📈 Oficinas comerciales mucho más caras", `Has llegado al nivel 6. A partir de ahora, construir una oficina comercial cuesta ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST_L6)} (antes ${fmtMoney(COMMERCIAL_OFFICE_BUILD_COST_L5)}). El coste de gestión mensual sigue siendo el mismo, ${fmtMoney(COMMERCIAL_OFFICE_MONTHLY_COST)}/mes — solo sube el coste de construcción. Las oficinas que ya tengas construidas no se ven afectadas; solo las nuevas.`);
             if (state.level === 3) showModal("Banco desbloqueado", "Ya puedes solicitar financiacion bancaria hasta 100.000 euros vivos con interes alto mensual.");
+            // Every 5 levels from level 10 onwards (10, 15, 20, 25...), a state subsidy — same amount for
+            // EVERY player at that level, deterministic by level (not random per player), scaling from
+            // 5.000€ to a 30.000€ cap. Level 5 already has its own distinct 20.000€ subsidy above, so this
+            // starts at level 10 to avoid overlapping with it.
+            if (state.level >= 10 && state.level % 5 === 0) {
+                const levelBonus = clamp(5000 + (state.level - 10) * 1000, 5000, 30000);
+                addMovement("income", `Subvención de transporte concedida (nivel ${state.level})`, levelBonus);
+                addEmail("ayudas@mitma.eu", "🏛️ Subvención de transporte concedida", `Estimada empresa,\n\nEn el marco del programa de ayudas del Ministerio de Transportes para el fomento de empresas logísticas en expansión, se le ha concedido una subvención de ${fmtMoney(levelBonus)}, ya ingresada en su cuenta bancaria.\n\nEnhorabuena por el crecimiento de su empresa.`, "finance");
+                showModal("🏛️ Ayuda del Estado", `El Gobierno sigue apoyando a las empresas de transporte en expansión. Como reconocimiento a tu crecimiento (nivel ${state.level}), <strong>el Estado ingresa ${fmtMoney(levelBonus)} en tu cuenta</strong>.<br><br>💰 Saldo actualizado: ${fmtMoney(state.bank.balance)}`);
+            }
             // IMPORTANT: do NOT regenerate today's orders. The new cap only applies to the next day (next midnight)
             // refreshDailyOrders(Date.now(), true); -- REMOVED
             const newMax = orderLimitForLevel();
