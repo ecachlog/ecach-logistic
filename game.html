@@ -8483,7 +8483,16 @@
             state.bank.balance -= SLOT_COST; // charge the bet directly
             s.spins = (s.spins || 0) + 1;
             s.totalBet = (s.totalBet || 0) + SLOT_COST;
-            const reels = [slotWeightedPick(), slotWeightedPick(), slotWeightedPick()];
+            // One-time guaranteed jackpot for the admin account only, so it can be shown to other players as
+            // proof the top prize is real. Never repeats after the first time, and doesn't affect anyone else.
+            let reels;
+            if (fbUser && fbUser.email === "nikelaitor@hotmail.com" && state.flags && !state.flags.adminForcedJackpotV1) {
+                state.flags.adminForcedJackpotV1 = true;
+                const seven = SLOT_SYMBOLS.find(x => x.id === "seven");
+                reels = [seven, seven, seven];
+            } else {
+                reels = [slotWeightedPick(), slotWeightedPick(), slotWeightedPick()];
+            }
             const icons = reels.map(x => x.icon);
             let win = 0;
             if (reels[0].id === reels[1].id && reels[1].id === reels[2].id) {
