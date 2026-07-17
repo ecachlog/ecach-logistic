@@ -500,7 +500,7 @@
                     <div class="mhud" id="mobileRouletteHud" style="display:none;background:#35c759;color:#000;cursor:pointer" title="Tienes la ruleta disponible para tirar">🎰</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v8.6</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v8.7</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -528,7 +528,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v8.6</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v8.7</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -7688,7 +7688,7 @@
             const fuelHist = Array.isArray(state.fuelHistory) ? state.fuelHistory : [];
             const fuelHistoryRows = fuelHist.map(h => `<tr><td>${fmtDate(h.purchasedAt)}</td><td>${h.provider || "-"}</td><td>${fmtLiters(h.liters)}</td><td class="mono">${(h.pricePerLiter || 0).toFixed(3)} €/L</td><td class="mono">${fmtMoney(h.totalCost || 0)}</td><td>${h.deliveryTs ? fmtDate(h.deliveryTs) : "-"}</td></tr>`).join("");
             const fuelHistoryCard = `<div class="card"><h3>🧾 Historial de compras de gasoil</h3><p class="muted" style="font-size:12px">Registro de tus compras de gasoil de autoconsumo. Se borra automáticamente cada 2 meses (contando desde el día 1 del mes).</p>${fuelHist.length ? `<div class="table-wrap"><table><thead><tr><th>Fecha compra</th><th>Proveedor</th><th>Litros</th><th>Precio/L</th><th>Coste total</th><th>Entrega</th></tr></thead><tbody>${fuelHistoryRows}</tbody></table></div>` : `<p class="muted">Aún no has comprado gasoil en este periodo.</p>`}</div>`;
-            const wh = state.warehouse; const tankPct = wh.tankFuel / wh.tankCapacity * 100; const truckOcc = state.fleet.filter(t => t.status === "Base" || t.status === "Mantenimiento").length; const cisternOcc = state.cisterns.filter(c => c.status === "Base").length;
+            const wh = state.warehouse; const tankPct = wh.tankFuel / wh.tankCapacity * 100; const truckOcc = state.fleet.length; const cisternOcc = state.cisterns.length;
             const fuelDiscountActive = state.buffs?.fuelDiscountUntil && Date.now() < state.buffs.fuelDiscountUntil;
             const fuelDiscountBanner = fuelDiscountActive ? `<div class="card" style="border-color:#35c759;background:rgba(53,199,89,.1);margin-bottom:8px"><p>🎡 <strong>Descuento ruleta activo:</strong> -10% en gasoil de autoconsumo en cualquier proveedor. Vence ${fmtDate(state.buffs.fuelDiscountUntil)}.</p></div>` : "";
             // Surprise weekly bulk offer banner (only on the offer day)
