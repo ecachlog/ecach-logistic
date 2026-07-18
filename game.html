@@ -2370,6 +2370,14 @@
                     if (!w.gender) w.gender = FIRST_NAME_GENDER[w.first] || (Math.random() < 0.5 ? "M" : "F");
                 });
             }
+            // Force today's cached AdBlue price to be recalculated with the new +50% formula, instead of
+            // waiting until the natural midnight refresh (which would keep showing yesterday's cheaper price
+            // for the rest of today).
+            if (!state._adbluePriceHikeV1) {
+                state._adbluePriceHikeV1 = true;
+                state.adblueQuotes = [];
+                state.adblueQuoteDay = null;
+            }
             if (!state._kmMigrationV3) {
                 state.fleet?.forEach(truck => {
                     if ((truck.tireKm || 0) > (truck.km || 0)) {
