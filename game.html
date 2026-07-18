@@ -1017,7 +1017,7 @@
         const ADBLUE_CONSUMPTION_RATIO = 0.05; // AdBlue burn = 5% of the truck's diesel consumption (L/100km)
         const ADBLUE_ROUTE_MARKUP = 1.30; // same 30% in-route markup as diesel
         const ADBLUE_LOW_STOCK_RATIO = 0.08; // warn below 8% of current tank capacity (same ratio as diesel's 4.000/50.000)
-        const AVG_ADBLUE_PRICE = 0.45;
+        const AVG_ADBLUE_PRICE = 0.68;
         const ADR_MAX_SPEED_KMH = 80;
         const AUTONOMO_KM_COST = 3.50;
         const DRIVER_HOURLY_COST = 22;
@@ -1219,9 +1219,9 @@
             { id: "fuel-3", name: "EuroPetrol Bulk", price: 1.55, etaHours: 23 }
         ];
         const adblueProviders = [
-            { id: "adblue-1", name: "UreaExpress Terminal", price: 0.52, etaHours: 2 },
-            { id: "adblue-2", name: "NordBlue Supply", price: 0.45, etaHours: 8 },
-            { id: "adblue-3", name: "EuroDEF Bulk", price: 0.37, etaHours: 20 }
+            { id: "adblue-1", name: "UreaExpress Terminal", price: 0.78, etaHours: 2 },
+            { id: "adblue-2", name: "NordBlue Supply", price: 0.68, etaHours: 8 },
+            { id: "adblue-3", name: "EuroDEF Bulk", price: 0.56, etaHours: 20 }
         ];
         const loadingPorts = [
             { id: "port-barcelona", name: "Puerto de Barcelona", country: "ES", lat: 41.3525, lng: 2.1730, address: "Terminal petrolera, Puerto de Barcelona, España" },
@@ -2149,7 +2149,7 @@
                     }
                     // If restUntilTs is still in the future: leave the driver alone, the futureEvent will fire
                 }
-                if ((w.status === "Baja médica" || w.status === "Vacaciones") && !w.leaveUntilTs) {
+                if ((w.status === "Baja médica" || w.status === "Vacaciones" || w.status === "Baja por paternidad" || w.status === "Baja por maternidad") && !w.leaveUntilTs) {
                     const returnEvent = state.futureEvents.find(e => e.type === "worker-return" && e.workerId === w.id);
                     if (returnEvent) w.leaveUntilTs = returnEvent.ts;
                     if (!w.leaveStartedAt) w.leaveStartedAt = Date.now();
@@ -2363,6 +2363,12 @@
             if (!state.flags._ratingPopupResetV3) {
                 state.flags._ratingPopupResetV3 = true;
                 state.flags.ratingPopupSeenV1 = false;
+            }
+            if (!state._genderMigrationV1) {
+                state._genderMigrationV1 = true;
+                (state.workers || []).forEach(w => {
+                    if (!w.gender) w.gender = FIRST_NAME_GENDER[w.first] || (Math.random() < 0.5 ? "M" : "F");
+                });
             }
             if (!state._kmMigrationV3) {
                 state.fleet?.forEach(truck => {
@@ -3615,8 +3621,9 @@
             return cistern;
         }
 
+        const FIRST_NAME_GENDER = { "Alex": "M", "Sara": "F", "Diego": "M", "Nora": "F", "Iker": "M", "Lucía": "F", "Marta": "F", "Raúl": "M", "Elena": "F", "Pau": "M", "Iván": "M", "Amina": "F", "Carlos": "M", "Laura": "F", "Jordi": "M", "Ana": "F", "Marc": "M", "Carla": "F", "Rubén": "M", "Núria": "F", "Víctor": "M", "Cristina": "F" };
         function addWorkerDirect(role, first, last, salary, now = Date.now(), status = "Disponible", baseId = state.warehouse?.id, experience = rand(35, 80)) {
-            const worker = { id: uid("worker"), role, first, last, salary, hiredAt: now, vacationDays: 24, status, adr: role === "Conductor", experience, drivingToday: 0, drivingWeek: 0, drivingBiweek: 0, continuousDriving: 0, cycleStartTs: now, lastRestEndTs: now, weekStartTs: now, currentTripId: null, baseId, avatar: `${first[0]}${last[0]}`.toUpperCase(), requests: [] };
+            const worker = { id: uid("worker"), role, first, last, salary, hiredAt: now, vacationDays: 24, status, adr: role === "Conductor", experience, drivingToday: 0, drivingWeek: 0, drivingBiweek: 0, continuousDriving: 0, cycleStartTs: now, lastRestEndTs: now, weekStartTs: now, currentTripId: null, baseId, avatar: `${first[0]}${last[0]}`.toUpperCase(), requests: [], gender: FIRST_NAME_GENDER[first] || (Math.random() < 0.5 ? "M" : "F") };
             ensureWorkerRealism(worker, now);
             state.workers.push(worker);
             if (state.immediateSlots[role] > 0) state.immediateSlots[role]--;
@@ -5283,8 +5290,11 @@
             const r2 = seededRandClient(dn * 5 + 102);
             const r3 = seededRandClient(dn * 5 + 103);
             const rangeInt = (rnd, min, max) => Math.floor(rnd * (max - min + 1)) + min;
-            const fastPrice = rangeInt(r1, 48, 55) / 100;
-            const slowPrice = Math.min(fastPrice - 0.05, rangeInt(r2, 35, 42) / 100);
+            // +50% price increase requested: base range was 0.35-0.55€/L, now 0.53-0.83€/L. This also raises
+            // the in-route refuel price by the same 50%, since currentRouteAdbluePrice() is derived from
+            // these same provider prices with the same markup on top.
+            const fastPrice = rangeInt(r1, 72, 83) / 100;
+            const slowPrice = Math.min(fastPrice - 0.07, rangeInt(r2, 53, 63) / 100);
             const midPrice = Math.round(((fastPrice + slowPrice) / 2 + rangeInt(r3, -2, 2) / 100) * 100) / 100;
             state.adblueQuoteDay = day;
             state.adblueQuotesUpdatedAt = now;
@@ -6550,7 +6560,7 @@
             const available = state.workers.filter(w => w.status === "Disponible");
             const worker = available.length ? pick(available) : null;
             if (!worker) return;
-            const eventType = pick(["vacaciones", "baja", "subida"]);
+            const eventType = pick(["vacaciones", "baja", "subida", "baja_parental"]);
             if (eventType === "vacaciones") {
                 // Voluntary vacation: the worker simply informs they're going on holiday (no approval needed).
                 // Only if they actually have vacation days left and are currently available.
@@ -6571,7 +6581,26 @@
                 }
             }
             else if (eventType === "baja") { const days = rand(2, 8); const returnTs = now + days * MS_DAY; worker.status = "Baja médica"; worker.leaveStartedAt = now; worker.leaveUntilTs = returnTs; state.futureEvents.push({ id: uid("evt"), type: "worker-return", workerId: worker.id, ts: returnTs }); addEmail(`${worker.first}.${worker.last}@ecachlogistic.eu`, "Parte de baja médica", `Adjunto parte médico. Duración estimada: ${days} días.`, "staff", worker.id); notify("Baja médica", `${worker.first} ${worker.last} estará de baja ${days} días.`, "warn", true); }
-            else if (now - worker.hiredAt > 180 * MS_DAY) { addEmail(`${worker.first}.${worker.last}@ecachlogistic.eu`, "Solicitud de aumento salarial", `Tras más de 6 meses solicito revisar mi salario actual (${fmtMoney(worker.salary)}).`, "staff", worker.id); notify("Solicitud de aumento", `${worker.first} ${worker.last} pide revisión salarial.`, "warn"); }
+            else if (eventType === "subida" && now - worker.hiredAt > 180 * MS_DAY) { addEmail(`${worker.first}.${worker.last}@ecachlogistic.eu`, "Solicitud de aumento salarial", `Tras más de 6 meses solicito revisar mi salario actual (${fmtMoney(worker.salary)}).`, "staff", worker.id); notify("Solicitud de aumento", `${worker.first} ${worker.last} pide revisión salarial.`, "warn"); }
+            else if (eventType === "baja_parental") {
+                // Low-probability event: only workers aged 20-40, currently "Disponible" (at base — never mid
+                // route, so a truck is never left stranded without a driver). Even when picked, only a small
+                // extra chance actually triggers it, keeping it rare overall.
+                if (worker.status === "Disponible" && worker.age >= 20 && worker.age <= 40 && Math.random() < 0.12) {
+                    const isFemale = (worker.gender || "M") === "F";
+                    const label = isFemale ? "Baja por maternidad" : "Baja por paternidad";
+                    const months = 6;
+                    const returnTs = now + months * 30 * MS_DAY;
+                    worker.status = label;
+                    worker.leaveStartedAt = now;
+                    worker.leaveUntilTs = returnTs;
+                    state.futureEvents.push({ id: uid("evt"), type: "worker-return", workerId: worker.id, ts: returnTs });
+                    addMovement("income", "Ayuda estatal por baja de paternidad/maternidad", 5000);
+                    addEmail(`${worker.first}.${worker.last}@ecachlogistic.eu`, label, `Le informo de que voy a coger ${label.toLowerCase()}, con una duración estimada de ${months} meses. Volveré a estar disponible el ${fmtDate(returnTs)}. Gracias por su comprensión.`, "staff", worker.id);
+                    addEmail("ayudas@mitma.eu", "🏛️ Ayuda estatal concedida", `Estimada empresa,\n\nComo ayuda del Estado por mantener el puesto de trabajo de un empleado durante su ${label.toLowerCase()} (${months} meses), se le ha concedido una subvención de ${fmtMoney(5000)}, ya ingresada en su cuenta bancaria.\n\nGracias por su compromiso con la conciliación familiar.`, "finance");
+                    notify(label, `${worker.first} ${worker.last} está de ${label.toLowerCase()} durante ${months} meses. Sigues pagando su sueldo, Seguridad Social y gestoría con normalidad, y no se le puede despedir mientras dure. El Estado te ha ingresado ${fmtMoney(5000)} de ayuda.`, "warn", true);
+                }
+            }
         }
 
         function minimumStaffNeeds() {
@@ -6584,7 +6613,7 @@
         }
         function activeStaffCounts() {
             return state.workers.reduce((acc, worker) => {
-                if (["Baja médica", "Baja mÃ©dica", "Vacaciones", "Incorporación", "IncorporaciÃ³n"].includes(worker.status)) return acc;
+                if (["Baja médica", "Baja mÃ©dica", "Vacaciones", "Incorporación", "IncorporaciÃ³n", "Baja por paternidad", "Baja por maternidad"].includes(worker.status)) return acc;
                 acc[worker.role] = (acc[worker.role] || 0) + 1;
                 return acc;
             }, {});
@@ -6614,7 +6643,7 @@
             notify("Trabajador temporal asignado", `${first} ${last} cubre a ${worker.first} ${worker.last}. Coste diario ${fmtMoney(TEMP_WORKER_DAILY_COST)}.`, "warn", true);
         }
         function ensureCoversForAbsentWorkers() {
-            state.workers.filter(w => !w.temporary && ["Baja médica", "Baja mÃ©dica", "Vacaciones"].includes(w.status)).forEach(w => ensureTemporaryCover(w, w.status));
+            state.workers.filter(w => !w.temporary && ["Baja médica", "Baja mÃ©dica", "Vacaciones", "Baja por paternidad", "Baja por maternidad"].includes(w.status)).forEach(w => ensureTemporaryCover(w, w.status));
         }
         function cleanupTemporaryCovers(returningWorkerId) {
             state.workers = state.workers.filter(w => !(w.temporary && w.coveringWorkerId === returningWorkerId));
@@ -7362,6 +7391,7 @@
                 else if (d.status === "Disponible") statusIcon = `✅ Disponible`;
                 else if (d.status === "Descanso obligatorio") statusIcon = `🛏 Descanso obligatorio`;
                 else if (d.status === "Baja médica") statusIcon = `🌡️ Baja médica`;
+                else if (d.status === "Baja por paternidad" || d.status === "Baja por maternidad") statusIcon = `👶 ${d.status}`;
                 else if (d.status === "Vacaciones") statusIcon = `🏖️ Vacaciones`;
                 else if (d.status === "Formación") statusIcon = `📚 En formación`;
                 else statusIcon = d.status;
@@ -7469,7 +7499,7 @@
 
         let _staffTab = "cvs";
         function renderStaff() {
-            const activeWorkers = state.workers.filter(w => w.status !== "Baja médica" && w.status !== "Vacaciones");
+            const activeWorkers = state.workers.filter(w => w.status !== "Baja médica" && w.status !== "Vacaciones" && w.status !== "Baja por paternidad" && w.status !== "Baja por maternidad");
             const leaveWorkers = state.workers.filter(w => w.status === "Baja médica");
             const vacationWorkers = state.workers.filter(w => w.status === "Vacaciones");
 
@@ -7574,7 +7604,7 @@
             const worker = state.workers.find(w => w.id === workerId);
             if (!worker) return;
             const now = Date.now();
-            const onLeave = worker.status === "Baja médica" || worker.status === "Vacaciones";
+            const onLeave = worker.status === "Baja médica" || worker.status === "Vacaciones" || worker.status === "Baja por paternidad" || worker.status === "Baja por maternidad";
             const leaveStarted = worker.leaveStartedAt || (onLeave ? worker.hiredAt : null);
             const leaveUntil = worker.leaveUntilTs || worker.vacationUntilTs || null;
             const daysOnLeave = onLeave && leaveStarted ? Math.max(1, Math.ceil((now - leaveStarted) / MS_DAY)) : 0;
@@ -7661,7 +7691,7 @@
                 if (remHours <= 0) return "";
                 return `<div class="card" style="border-color:#e8a504;background:rgba(232,165,4,.15);margin:6px 0;padding:8px"><strong>📧 Oferta pendiente: +${fmtMoney(w.raiseAmount || 500)}/mes</strong><br><span style="font-size:12px">⏱ Plazo: ${fmtDurationHours(remHours)} restantes</span><br><div class="row" style="margin-top:6px;gap:6px"><button class="primary small" data-action="accept-raise" data-id="${w.id}">✅ Aceptar</button><button class="danger small" data-action="reject-raise" data-id="${w.id}">❌ Rechazar</button></div></div>`;
             })() : "";
-            return `<article class="card"><div class="row" style="justify-content:space-between"><h3>${ettInfo}<span class="badge orange">${w.avatar}</span> ${w.first} ${w.last}</h3><span class="badge ${w.status === "Disponible" ? "ok" : w.status === "Baja médica" || w.status === "Vacaciones" ? "warn" : w.status === "Descanso obligatorio" ? "danger" : w.status === "Descansando" ? "warn" : "info"}">${w.status}</span></div><p>Puesto: <strong>${w.role}</strong> · Edad: <span class="mono">${currentAge(w) || "—"} años</span>${exp}${kmDrivenInfo} · Salario: <span class="mono">${fmtMoney(w.salary)}/mes</span></p><p>Contratado: ${fmtDate(w.hiredAt)} · Antigüedad: ${employmentDays(w)} días · Vacaciones: ${w.vacationDays} días/año</p>${ettCostInfo}${fireWarning}${raiseInfoBadge}${expProgress}${adrInfo}${courseInfo}${resignInfo}${raiseInfo}<div class="row">${renewBtn}${trainBtn}${absenceBtn}${renameBtn}${fireBtn}</div></article>`;
+            return `<article class="card"><div class="row" style="justify-content:space-between"><h3>${ettInfo}<span class="badge orange">${w.avatar}</span> ${w.first} ${w.last}</h3><span class="badge ${w.status === "Disponible" ? "ok" : w.status === "Baja médica" || w.status === "Vacaciones" || w.status === "Baja por paternidad" || w.status === "Baja por maternidad" ? "warn" : w.status === "Descanso obligatorio" ? "danger" : w.status === "Descansando" ? "warn" : "info"}">${w.status}</span></div><p>Puesto: <strong>${w.role}</strong> · Edad: <span class="mono">${currentAge(w) || "—"} años</span>${exp}${kmDrivenInfo} · Salario: <span class="mono">${fmtMoney(w.salary)}/mes</span></p><p>Contratado: ${fmtDate(w.hiredAt)} · Antigüedad: ${employmentDays(w)} días · Vacaciones: ${w.vacationDays} días/año</p>${ettCostInfo}${fireWarning}${raiseInfoBadge}${expProgress}${adrInfo}${courseInfo}${resignInfo}${raiseInfo}<div class="row">${renewBtn}${trainBtn}${absenceBtn}${renameBtn}${fireBtn}</div></article>`;
         }
 
         function renderCurriculumCards() {
@@ -11081,7 +11111,7 @@
         // currentTripId set) — an active trip is never interrupted by a course. Once the trip
         // finishes and the trip code resets the worker to "Disponible", the next tick of this
         // function will correctly flip them back to "Formación" if their course is still running.
-        const TRAINING_PROTECTED_STATUSES = ["Baja médica", "Vacaciones", "Descanso obligatorio", "Descansando"];
+        const TRAINING_PROTECTED_STATUSES = ["Baja médica", "Vacaciones", "Descanso obligatorio", "Descansando", "Baja por paternidad", "Baja por maternidad"];
         function syncTrainingStatus(now = Date.now()) {
             (state.workers || []).forEach(w => {
                 if (w.role !== "Conductor" || !w.courses) return;
@@ -11269,6 +11299,7 @@
             const worker = state.workers.find(w => w.id === workerId);
             if (!worker) return;
             if (worker.status === "Conduciendo" || worker.currentTripId) return notify("Despido bloqueado", "No puedes despedir a un trabajador mientras está en ruta.", "danger", true);
+            if (worker.status === "Baja por paternidad" || worker.status === "Baja por maternidad") return notify("Despido bloqueado", `No puedes despedir a un trabajador mientras está de ${worker.status.toLowerCase()}.`, "danger", true);
             // Special handling for ETT temporary workers
             if (worker.temporary) {
                 // ETT: pay full day even if dismissed before midnight
