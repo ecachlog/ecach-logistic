@@ -500,7 +500,7 @@
                     <div class="mhud" id="mobileRouletteHud" style="display:none;background:#35c759;color:#000;cursor:pointer" title="Tienes la ruleta disponible para tirar">🎰</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v8.7</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v8.8</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -528,7 +528,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v8.7</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v8.8</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -5903,12 +5903,15 @@
             ["noFinesUntil", "noBreakdownsUntil", "fastLoadUntil", "fuelDiscountUntil", "truckDiscountUntil"].forEach(k => {
                 if (typeof state.buffs[k] !== "number") state.buffs[k] = 0;
             });
-            // Register spin and save BEFORE applying prize — prevents import/export exploit
+            // Register the spin as consumed. NOTE: we used to save() here, BEFORE applying the prize effect
+            // below — that left a brief window where, if anything interrupted right after (a stale-tab
+            // overwrite, a reload, etc.), the spin could get saved as "used" and logged in the history
+            // without its actual buff ever being applied. Now we apply the effect first and save once at the
+            // very end, so what gets saved always reflects the complete, correct outcome.
             state.luckWheel.lastSpinAt = now;
             state.luckWheel.nextSpinAt = now + MS_DAY;
             state.luckWheel.spins.unshift({ prize, ts: now });
             state.luckWheel.spins = state.luckWheel.spins.slice(0, 20);
-            saveGame(true); // Save immediately — tirada ya consumida aunque se importe partida anterior
             if (prize === "24 horas sin multas") {
                 state.buffs.noFinesUntil = now + MS_DAY;
                 notify("Premio aplicado", "Durante 24h podrás circular incluso con prohibiciones ADR sin recibir multas.", "ok", true);
@@ -5949,6 +5952,7 @@
                 state.buffs.truckDiscountUntil = now + MS_DAY;
                 notify("Premio aplicado", "Durante las próximas 24h tendrás un 10% de descuento en compra y firma de renting de tractoras NUEVAS (no aplica a segunda mano ni remolques).", "ok", true);
             }
+            saveGame(true); // Single save at the end, capturing the complete final outcome (prize applied, or reverted if generation failed)
             renderAll();
         }
 
