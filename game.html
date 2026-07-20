@@ -500,7 +500,7 @@
                     <div class="mhud" id="mobileRouletteHud" style="display:none;background:#35c759;color:#000;cursor:pointer" title="Tienes la ruleta disponible para tirar">🎰</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v9.0</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v9.1</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -528,7 +528,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v9.0</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v9.1</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -4957,6 +4957,14 @@
             try { apiCall("POST", "/api/log-delivery", { category, description }).catch(() => {}); } catch (e) {}
         }
         function completeTrip(trip) {
+            // IDEMPOTENCY GUARD: there are two different code paths that can call completeTrip for the same
+            // trip (the normal per-tick processing, and a "stuck trip" safety net that runs at load time for
+            // trips whose endTs passed while the game was closed). If both ever ran for the same trip — e.g.
+            // due to a stale/duplicated save being reloaded — the payment and delivery log would be recorded
+            // twice. This guard makes that impossible: once a trip has been marked completed, calling this
+            // again for the same trip object is a guaranteed no-op, no matter what triggered the second call.
+            if (trip.completed) return;
+            trip.completed = true;
             // If trip ended in the past (game was closed), use actual arrival time so rest periods are calculated correctly
             const realNow = Date.now();
             const now = (trip.endTs && trip.endTs < realNow) ? trip.endTs : realNow;
