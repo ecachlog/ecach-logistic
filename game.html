@@ -500,7 +500,7 @@
                     <div class="mhud" id="mobileRouletteHud" style="display:none;background:#35c759;color:#000;cursor:pointer" title="Tienes la ruleta disponible para tirar">🎰</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v8.8</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v8.9</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -528,7 +528,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v8.8</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v8.9</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -8532,6 +8532,18 @@
                 state.flags.adminForcedJackpotV1 = true;
                 const seven = SLOT_SYMBOLS.find(x => x.id === "seven");
                 reels = [seven, seven, seven];
+            } else if (state.flags && state.flags.forcedJackpotSpinsLeft > 0) {
+                // Admin-granted guarantee: hit the jackpot within the next N spins. Odds increase each spin
+                // (1-in-remaining), so it's mathematically certain by the time remaining hits 1.
+                const remaining = state.flags.forcedJackpotSpinsLeft;
+                if (Math.random() < 1 / remaining) {
+                    state.flags.forcedJackpotSpinsLeft = 0;
+                    const seven = SLOT_SYMBOLS.find(x => x.id === "seven");
+                    reels = [seven, seven, seven];
+                } else {
+                    state.flags.forcedJackpotSpinsLeft = remaining - 1;
+                    reels = [slotWeightedPick(), slotWeightedPick(), slotWeightedPick()];
+                }
             } else {
                 reels = [slotWeightedPick(), slotWeightedPick(), slotWeightedPick()];
             }
@@ -8628,7 +8640,7 @@
             const playerId = fbUser?.uid || null;
             const playerEmail = fbUser?.email || null;
             const playerIdCard = playerId ? `<div class="card"><h3>🆔 ID de jugador</h3><p style="color:var(--muted);font-size:13px">Este es tu identificador único en el juego. Lo puedes compartir con otros jugadores para que te identifiquen al unirse a tu alianza.</p><p><strong>Email:</strong> ${playerEmail}</p><p><strong>ID:</strong> <span class="mono" style="background:#1e2530;padding:4px 8px;border-radius:4px;font-size:11px;word-break:break-all;display:inline-block;max-width:100%">${playerId}</span></p><button class="ghost small" data-action="copy-player-id">📋 Copiar ID</button></div>` : `<div class="card"><h3>🆔 ID de jugador</h3><p style="color:var(--muted)">Inicia sesión para ver tu ID de jugador.</p></div>`;
-            const adminPanel = (fbUser && fbUser.email === "nikelaitor@hotmail.com") ? `<div class="card" style="border-color:rgba(232,165,4,.4);background:rgba(232,165,4,.06)"><h3>🔧 Administrador — Mantenimiento</h3><p style="color:var(--muted);font-size:13px">Antes de subir una actualización, activa el mantenimiento: en menos de 1 minuto todos los jugadores guardarán su partida y serán expulsados con un mensaje pidiéndoles volver en 10 minutos. Recuerda DESACTIVARLO cuando termines de subir.</p><div class="row" style="margin-top:10px"><button class="primary" data-action="maintenance-on">🔧 Activar mantenimiento</button><button class="ghost" data-action="maintenance-off">✅ Desactivar mantenimiento</button></div><hr style="margin:14px 0;border-color:rgba(232,165,4,.2)"><p style="color:var(--muted);font-size:13px">Herramientas de reparación de partida (solo para tu cuenta):</p><div class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px"><button class="danger" data-action="admin-fix-ghost-trips">🧹 Limpiar viajes fantasma</button><button class="ghost" data-action="admin-fix-ghost-maintenance">🔩 Limpiar mantenimientos fantasma</button></div><hr style="margin:14px 0;border-color:rgba(232,165,4,.2)"><h4 style="margin:0 0 6px;color:#e85d04">🔍 Buscar contratos y pedidos de un jugador por ID</h4><p style="color:var(--muted);font-size:11px;margin:0 0 6px">Busca contratos aeroportuarios, pedidos de gasolinera "fantasma" e historial de entregas de cualquier jugador, sea de tu alianza o de otra.</p><div class="row"><input type="text" id="adminLookupUid" placeholder="UID del jugador" style="flex:1"><button data-action="admin-lookup-airport-contracts">🔍 Buscar</button></div><div id="adminLookupResults" style="margin-top:8px"></div></div>` : "";
+            const adminPanel = (fbUser && fbUser.email === "nikelaitor@hotmail.com") ? `<div class="card" style="border-color:rgba(232,165,4,.4);background:rgba(232,165,4,.06)"><h3>🔧 Administrador — Mantenimiento</h3><p style="color:var(--muted);font-size:13px">Antes de subir una actualización, activa el mantenimiento: en menos de 1 minuto todos los jugadores guardarán su partida y serán expulsados con un mensaje pidiéndoles volver en 10 minutos. Recuerda DESACTIVARLO cuando termines de subir.</p><div class="row" style="margin-top:10px"><button class="primary" data-action="maintenance-on">🔧 Activar mantenimiento</button><button class="ghost" data-action="maintenance-off">✅ Desactivar mantenimiento</button></div><hr style="margin:14px 0;border-color:rgba(232,165,4,.2)"><p style="color:var(--muted);font-size:13px">Herramientas de reparación de partida (solo para tu cuenta):</p><div class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px"><button class="danger" data-action="admin-fix-ghost-trips">🧹 Limpiar viajes fantasma</button><button class="ghost" data-action="admin-fix-ghost-maintenance">🔩 Limpiar mantenimientos fantasma</button></div><hr style="margin:14px 0;border-color:rgba(232,165,4,.2)"><h4 style="margin:0 0 6px;color:#e85d04">🔍 Buscar contratos y pedidos de un jugador por ID</h4><p style="color:var(--muted);font-size:11px;margin:0 0 6px">Busca contratos aeroportuarios, pedidos de gasolinera "fantasma" e historial de entregas de cualquier jugador, sea de tu alianza o de otra.</p><div class="row"><input type="text" id="adminLookupUid" placeholder="UID del jugador" style="flex:1"><button data-action="admin-lookup-airport-contracts">🔍 Buscar</button></div><div class="row" style="margin-top:8px"><button class="ghost" data-action="admin-grant-jackpot">🎰 Garantizar premio de 30.000€ en sus próximas 10 tiradas</button></div><div id="adminLookupResults" style="margin-top:8px"></div></div>` : "";
             $("settingsContent").innerHTML = `
             ${state.initialized ? `<div class="card"><h3>🏢 Nombre de tu empresa</h3><p style="color:var(--muted)">Nombre actual: <strong>${escapeHtml(currentName) || "Sin nombre"}</strong></p><label><span class="label">Cambiar nombre</span><input id="companyNameInput" maxlength="40" placeholder="Ej: Transportes García, LogiSur..." value="${escapeHtml(currentName)}"></label><div class="row" style="margin-top:10px"><button class="primary" data-action="save-company-name">Guardar nombre</button></div></div>` : ""}
             ${adminPanel}
@@ -12355,6 +12367,19 @@
             }
         }
 
+        async function adminGrantJackpot() {
+            const uidInput = $("adminLookupUid");
+            if (!uidInput) return;
+            const uid = uidInput.value.trim();
+            if (!uid) return notify("Falta el ID", "Escribe el UID del jugador.", "warn", true);
+            if (!confirm(`🎰 ADMIN: ¿Garantizar que este jugador (UID: ${uid}) gane el premio de 30.000€ en alguna de sus próximas 10 tiradas de tragaperras?\n\n¿Confirmar?`)) return;
+            try {
+                await apiCall("POST", "/api/admin/grant-jackpot-by-uid", { uid });
+                notify("Premio garantizado", "El jugador ganará el premio de 30.000€ en alguna de sus próximas 10 tiradas, en cuanto vuelva a abrir el juego.", "ok", true);
+            } catch (e) {
+                notify("Error", e.message, "warn", true);
+            }
+        }
         async function adminLookupAirportContracts() {
             const uidInput = $("adminLookupUid");
             const resultsEl = $("adminLookupResults");
@@ -13027,6 +13052,7 @@
             if (action === "admin-fix-airport-contract") return adminFixAirportContract(parseInt(btn.dataset.id, 10), btn.dataset.uid, parseInt(btn.dataset.trips, 10));
             if (action === "admin-refund-weekly-airport") return adminRefundWeeklyAirportLimit(parseInt(btn.dataset.id, 10));
             if (action === "admin-lookup-airport-contracts") return adminLookupAirportContracts();
+            if (action === "admin-grant-jackpot") return adminGrantJackpot();
             if (action === "show-trip-info") return showTripInfo(btn.dataset.trip);
             if (action === "admin-cancel-gas-order") return adminCancelGasOrder(parseInt(btn.dataset.id, 10));
             if (action === "alliance-toggle-block") return toggleBlockMember(btn.dataset.uid, btn.dataset.name, btn.dataset.blocked === "true");
@@ -13845,8 +13871,38 @@
         // fined despite the alliance's protection already being active globally.
 
 
-        // Force Firebase save every 10s to keep ranking updated for everyone
-        setInterval(() => { if (fbUser && fbLoadComplete && !window._skipAutoCloudSave) saveGame(true); }, 10000);
+        // Force Firebase save every 10s to keep ranking updated for everyone — but SKIP entirely if nothing
+        // meaningful has changed since the last periodic save. Previously this always bumped lastSaveTs to
+        // "now" even with zero real changes, which made an idle/backgrounded device's save look artificially
+        // "fresher" than a device where the player was actually playing — defeating the cross-device
+        // conflict check (whoever's lastSaveTs was newer would win, regardless of which one had real
+        // progress). A lightweight fingerprint of the parts of state that matter for that decision avoids
+        // this: an idle tab's fingerprint stops changing, so its timestamp correctly stops advancing too.
+        let _lastAutosaveFingerprint = null;
+        function _autosaveFingerprint() {
+            try {
+                return [
+                    state.bank?.balance,
+                    state.level,
+                    (state.fleet || []).length,
+                    (state.cisterns || []).length,
+                    (state.workers || []).length,
+                    (state.activeTrips || []).map(t => `${t.id}:${t.status}`).join(","),
+                    (state.orders || []).length,
+                    state.warehouse?.truckSlots,
+                    state.warehouse?.tankCapacity,
+                    (state.commercialOffices || []).length,
+                    JSON.stringify(state.bank?.movements?.[0] || null)
+                ].join("|");
+            } catch (e) { return String(Date.now()); }
+        }
+        setInterval(() => {
+            if (!fbUser || !fbLoadComplete || window._skipAutoCloudSave) return;
+            const fp = _autosaveFingerprint();
+            if (fp === _lastAutosaveFingerprint) return; // nothing meaningful changed — don't touch lastSaveTs
+            _lastAutosaveFingerprint = fp;
+            saveGame(true);
+        }, 10000);
         // Periodically check if my shared orders were taken by a teammate, so they leave my list
         // Poll the alliance gas stations every 60s so low-stock alerts (blue envelope) reach every member
         // even if they're not looking at the alliance panel, and so stock/orders stay roughly in sync.
