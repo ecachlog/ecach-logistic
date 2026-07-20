@@ -500,7 +500,7 @@
                     <div class="mhud" id="mobileRouletteHud" style="display:none;background:#35c759;color:#000;cursor:pointer" title="Tienes la ruleta disponible para tirar">🎰</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v9.1</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v9.3</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -528,7 +528,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v9.1</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v9.3</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -5767,6 +5767,19 @@
             notify(`Sanción judicial (${paymentNum}/${lf.totalPayments})`, `Se han cargado ${fmtMoney(lf.amountPerPayment)} de la sanción judicial.`, "warn", true);
             if (lf.paymentsMade < lf.totalPayments) lf.nextPaymentTs = now + 30 * MS_DAY;
         }
+        function processFraudDebt(now = Date.now()) {
+            const fd = state.fraudDebt;
+            if (!fd || fd.paidInstallments >= fd.totalInstallments) return;
+            if (now < fd.nextPaymentTs) return;
+            const paymentNum = fd.paidInstallments + 1;
+            const amount = paymentNum === fd.totalInstallments ? (fd.totalOwed - fd.amountPerInstallment * (fd.totalInstallments - 1)) : fd.amountPerInstallment;
+            addMovement("expense", `Devolución pedidos duplicados (${paymentNum}/${fd.totalInstallments})`, -amount, now);
+            fd.paidInstallments++;
+            const nextText = fd.paidInstallments < fd.totalInstallments ? ` El siguiente plazo se cargará el ${fmtDate(now + 30 * MS_DAY)}.` : " Con este pago la deuda queda completamente saldada.";
+            addEmail("auditoria@ecachlogistic.eu", `Cargo por pedidos duplicados (${paymentNum}/${fd.totalInstallments})`, `Se ha cargado automáticamente el plazo ${paymentNum} de ${fd.totalInstallments} por los pedidos cobrados duplicados: ${fmtMoney(amount)}.${nextText}`, "finance");
+            notify(`Devolución cargada (${paymentNum}/${fd.totalInstallments})`, `Se han cargado ${fmtMoney(amount)} por pedidos duplicados detectados.`, "danger", true);
+            if (fd.paidInstallments < fd.totalInstallments) fd.nextPaymentTs = now + 30 * MS_DAY;
+        }
         function monthlyFixedSummary() {
             const payrollWorkers = state.workers.filter(w => !w.temporary);
             const salaries = payrollWorkers.reduce((sum, w) => sum + (w.salary || 0), 0);
@@ -5790,7 +5803,10 @@
             const lf = state.lawsuitFine;
             const lawsuitFine = (lf && lf.paymentsMade < lf.totalPayments) ? lf.amountPerPayment : 0;
             const lawsuitFineLabel = (lf && lf.paymentsMade < lf.totalPayments) ? `${lf.paymentsMade + 1}/${lf.totalPayments}` : "";
-            return { salaries, social, gestoria, truckRent, cisternRent, warehouseRent, officeManagement, truckInsurance, interest, loanPrincipalMonthly, loanInterestMonthly, loanPayment, lawsuitFine, lawsuitFineLabel, total: salaries + social + gestoria + truckRent + cisternRent + warehouseRent + officeManagement + truckInsurance + loanPayment + lawsuitFine };
+            const fd = state.fraudDebt;
+            const fraudDebtAmount = (fd && fd.paidInstallments < fd.totalInstallments) ? ((fd.paidInstallments + 1) === fd.totalInstallments ? (fd.totalOwed - fd.amountPerInstallment * (fd.totalInstallments - 1)) : fd.amountPerInstallment) : 0;
+            const fraudDebtLabel = (fd && fd.paidInstallments < fd.totalInstallments) ? `${fd.paidInstallments + 1}/${fd.totalInstallments}` : "";
+            return { salaries, social, gestoria, truckRent, cisternRent, warehouseRent, officeManagement, truckInsurance, interest, loanPrincipalMonthly, loanInterestMonthly, loanPayment, lawsuitFine, lawsuitFineLabel, fraudDebtAmount, fraudDebtLabel, total: salaries + social + gestoria + truckRent + cisternRent + warehouseRent + officeManagement + truckInsurance + loanPayment + lawsuitFine + fraudDebtAmount };
         }
         const BANK_LOAN_MONTHS = 24; // repayment period
 
@@ -6862,6 +6878,7 @@
         let _lawsuitFineNoticeChecked = false;
         let _ratingPopupChecked = false;
         let _airportSelfHealChecked = false;
+        let _fraudDebtNoticeChecked = false;
         function tick() {
             if (window._resumeCheckInProgress) return; // avoid racing with the async cloud-freshness check on resume
             const now = Date.now();
@@ -6915,6 +6932,19 @@
                     if (typeof loadAirportContracts === "function") loadAirportContracts().catch(() => {});
                 }
             }
+            // Mandatory notice: duplicate-order refund plan detected by the admin's anti-fraud scan.
+            if (!_fraudDebtNoticeChecked && state && state.fraudDebt && state.flags && state.flags.fraudDebtNoticeSeen === false) {
+                const gate = $("authGate");
+                if (gate && gate.style.display === "none") {
+                    _fraudDebtNoticeChecked = true;
+                    state.flags.fraudDebtNoticeSeen = true;
+                    saveGame(true);
+                    const fd = state.fraudDebt;
+                    setTimeout(() => {
+                        showModal("⚠️ Pedidos duplicados detectados", `Nuestro sistema ha detectado que se te pagaron <strong>varios pedidos duplicados</strong> por un fallo del juego ya corregido.<br><br>Somos conscientes de que es posible que se hayan duplicado más pagos de los detectados aquí — solo podemos actuar sobre los registros más recientes de los que disponemos datos, así que este importe corresponde únicamente a esos.<br><br>Importe total a devolver: <strong>${fmtMoney(fd.totalOwed)}</strong><br><br>Se te cobrará automáticamente en 2 plazos:<br>· Plazo 1: ${fmtMoney(fd.amountPerInstallment)} el ${fmtDate(fd.nextPaymentTs)}<br>· Plazo 2: ${fmtMoney(fd.totalOwed - fd.amountPerInstallment)} un mes después<br><br>Estos cargos son automáticos y no se pueden cancelar.`);
+                    }, 600);
+                }
+            }
             // Surprise weekly bulk fuel offer email (once on the offer day)
             if (fbUser && state && state.flags && bulkFuelOfferActive(now)) {
                 const offerDayKey = dateKey(new Date(now));
@@ -6930,7 +6960,7 @@
             }
             resetTachoIfNeeded(now);
             if (state.initialized && !state.gameOver) {
-                processWeather(now); processOrdersArrival(now); processCurriculums(now); processLoyaltyAutoOrders(now); processWorkerAnniversaries(now); processRaiseRequestExpiries(now); ensureCoversForAbsentWorkers(); enforceStaffRouteHolds(now); processTrips(now); processInvoices(now); processFutureEvents(now); processStaffEvents(now); syncTrainingStatus(now); processMonthlyBills(now); processLawsuitFine(now); checkWarnings(now);
+                processWeather(now); processOrdersArrival(now); processCurriculums(now); processLoyaltyAutoOrders(now); processWorkerAnniversaries(now); processRaiseRequestExpiries(now); ensureCoversForAbsentWorkers(); enforceStaffRouteHolds(now); processTrips(now); processInvoices(now); processFutureEvents(now); processStaffEvents(now); syncTrainingStatus(now); processMonthlyBills(now); processLawsuitFine(now); processFraudDebt(now); checkWarnings(now);
                 // Smooth truck movement every second; full map rebuild only when something structural changes
                 if (currentSection === "dashboard") {
                     drawMap();      // drawMap() now detects internally if static rebuild is needed
@@ -7862,6 +7892,7 @@
             ${mfs.officeManagement > 0 ? `<tr><td style="padding:5px 8px">🏢 Oficinas comerciales</td><td class="mono" style="padding:5px 8px;text-align:right">${fmtMoney(mfs.officeManagement)}</td></tr>` : ""}
             ${mfs.loanPayment > 0 ? `<tr><td style="padding:5px 8px">🏦 Cuota crédito (capital ${fmtMoney(mfs.loanPrincipalMonthly)} + interés ${fmtMoney(mfs.loanInterestMonthly)})</td><td class="mono" style="padding:5px 8px;text-align:right">${fmtMoney(mfs.loanPayment)}</td></tr>` : ""}
             ${mfs.lawsuitFine > 0 ? `<tr><td style="padding:5px 8px">⚖️ Sanción judicial (${mfs.lawsuitFineLabel})</td><td class="mono" style="padding:5px 8px;text-align:right">${fmtMoney(mfs.lawsuitFine)}</td></tr>` : ""}
+            ${mfs.fraudDebtAmount > 0 ? `<tr><td style="padding:5px 8px">⚠️ Devolución pedidos duplicados (${mfs.fraudDebtLabel})</td><td class="mono" style="padding:5px 8px;text-align:right">${fmtMoney(mfs.fraudDebtAmount)}</td></tr>` : ""}
             </tbody><tfoot><tr style="border-top:2px solid var(--line);font-weight:700"><td style="padding:8px">TOTAL mensual</td><td class="mono danger-text" style="padding:8px;text-align:right;font-size:15px">${fmtMoney(mfs.total)}</td></tr></tfoot></table></div></div>`;
             $("financeContent").innerHTML = `
             <div class="metrics">${metricHtml("Saldo actual", fmtMoney(state.bank.balance), "🏦")}${metricHtml("Nivel empresa", state.level, "🏢")}${metricHtml("Cobros pendientes", fmtMoney(totalCobrosPendientes), "🧾")}${pendingOut.some(i=>i.status==="overdue") ? metricHtml("Morosos pendientes", fmtMoney(pendingOut.filter(i=>i.status==="overdue"||i.status==="claimed").reduce((s,i)=>s+i.amount,0)), "⚠️") : ""}${metricHtml("Facturas pendientes pago", fmtMoney(pendingIn.reduce((s,i)=>s+i.amount,0)), "📥")}</div>
@@ -7939,6 +7970,12 @@
             if (state.lawsuitFine && state.lawsuitFine.paymentsMade < state.lawsuitFine.totalPayments) {
                 const lf = state.lawsuitFine;
                 addDay(lf.nextPaymentTs, `⚖️ Sanción judicial (${lf.paymentsMade + 1}/${lf.totalPayments})`, lf.amountPerPayment);
+            }
+            // Fraud debt (2 installments, a month apart) — automatic charge for duplicate-order refunds
+            if (state.fraudDebt && state.fraudDebt.paidInstallments < state.fraudDebt.totalInstallments) {
+                const fd = state.fraudDebt;
+                const amount = (fd.paidInstallments + 1) === fd.totalInstallments ? (fd.totalOwed - fd.amountPerInstallment * (fd.totalInstallments - 1)) : fd.amountPerInstallment;
+                addDay(fd.nextPaymentTs, `⚠️ Devolución pedidos duplicados (${fd.paidInstallments + 1}/${fd.totalInstallments})`, amount);
             }
             // Invoices to pay
             state.invoicesReceived.filter(i => i.status === "pending").forEach(i =>
@@ -8654,7 +8691,7 @@
             const playerId = fbUser?.uid || null;
             const playerEmail = fbUser?.email || null;
             const playerIdCard = playerId ? `<div class="card"><h3>🆔 ID de jugador</h3><p style="color:var(--muted);font-size:13px">Este es tu identificador único en el juego. Lo puedes compartir con otros jugadores para que te identifiquen al unirse a tu alianza.</p><p><strong>Email:</strong> ${playerEmail}</p><p><strong>ID:</strong> <span class="mono" style="background:#1e2530;padding:4px 8px;border-radius:4px;font-size:11px;word-break:break-all;display:inline-block;max-width:100%">${playerId}</span></p><button class="ghost small" data-action="copy-player-id">📋 Copiar ID</button></div>` : `<div class="card"><h3>🆔 ID de jugador</h3><p style="color:var(--muted)">Inicia sesión para ver tu ID de jugador.</p></div>`;
-            const adminPanel = (fbUser && fbUser.email === "nikelaitor@hotmail.com") ? `<div class="card" style="border-color:rgba(232,165,4,.4);background:rgba(232,165,4,.06)"><h3>🔧 Administrador — Mantenimiento</h3><p style="color:var(--muted);font-size:13px">Antes de subir una actualización, activa el mantenimiento: en menos de 1 minuto todos los jugadores guardarán su partida y serán expulsados con un mensaje pidiéndoles volver en 10 minutos. Recuerda DESACTIVARLO cuando termines de subir.</p><div class="row" style="margin-top:10px"><button class="primary" data-action="maintenance-on">🔧 Activar mantenimiento</button><button class="ghost" data-action="maintenance-off">✅ Desactivar mantenimiento</button></div><hr style="margin:14px 0;border-color:rgba(232,165,4,.2)"><p style="color:var(--muted);font-size:13px">Herramientas de reparación de partida (solo para tu cuenta):</p><div class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px"><button class="danger" data-action="admin-fix-ghost-trips">🧹 Limpiar viajes fantasma</button><button class="ghost" data-action="admin-fix-ghost-maintenance">🔩 Limpiar mantenimientos fantasma</button></div><hr style="margin:14px 0;border-color:rgba(232,165,4,.2)"><h4 style="margin:0 0 6px;color:#e85d04">🔍 Buscar contratos y pedidos de un jugador por ID</h4><p style="color:var(--muted);font-size:11px;margin:0 0 6px">Busca contratos aeroportuarios, pedidos de gasolinera "fantasma" e historial de entregas de cualquier jugador, sea de tu alianza o de otra.</p><div class="row"><input type="text" id="adminLookupUid" placeholder="UID del jugador" style="flex:1"><button data-action="admin-lookup-airport-contracts">🔍 Buscar</button></div><div class="row" style="margin-top:8px"><button class="ghost" data-action="admin-grant-jackpot">🎰 Garantizar premio de 30.000€ en sus próximas 10 tiradas</button></div><div id="adminLookupResults" style="margin-top:8px"></div></div>` : "";
+            const adminPanel = (fbUser && fbUser.email === "nikelaitor@hotmail.com") ? `<div class="card" style="border-color:rgba(232,165,4,.4);background:rgba(232,165,4,.06)"><h3>🔧 Administrador — Mantenimiento</h3><p style="color:var(--muted);font-size:13px">Antes de subir una actualización, activa el mantenimiento: en menos de 1 minuto todos los jugadores guardarán su partida y serán expulsados con un mensaje pidiéndoles volver en 10 minutos. Recuerda DESACTIVARLO cuando termines de subir.</p><div class="row" style="margin-top:10px"><button class="primary" data-action="maintenance-on">🔧 Activar mantenimiento</button><button class="ghost" data-action="maintenance-off">✅ Desactivar mantenimiento</button></div><hr style="margin:14px 0;border-color:rgba(232,165,4,.2)"><p style="color:var(--muted);font-size:13px">Herramientas de reparación de partida (solo para tu cuenta):</p><div class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px"><button class="danger" data-action="admin-fix-ghost-trips">🧹 Limpiar viajes fantasma</button><button class="ghost" data-action="admin-fix-ghost-maintenance">🔩 Limpiar mantenimientos fantasma</button></div><hr style="margin:14px 0;border-color:rgba(232,165,4,.2)"><h4 style="margin:0 0 6px;color:#e85d04">🔍 Buscar contratos y pedidos de un jugador por ID</h4><p style="color:var(--muted);font-size:11px;margin:0 0 6px">Busca contratos aeroportuarios, pedidos de gasolinera "fantasma" e historial de entregas de cualquier jugador, sea de tu alianza o de otra.</p><div class="row"><input type="text" id="adminLookupUid" placeholder="UID del jugador" style="flex:1"><button data-action="admin-lookup-airport-contracts">🔍 Buscar</button></div><div class="row" style="margin-top:8px"><button class="ghost" data-action="admin-grant-jackpot">🎰 Garantizar premio de 30.000€ en sus próximas 10 tiradas</button></div><hr style="margin:14px 0;border-color:rgba(232,165,4,.2)"><h4 style="margin:0 0 6px;color:#e85d04">⚠️ Escanear y cobrar pedidos duplicados (anti-fraude)</h4><p style="color:var(--muted);font-size:11px;margin:0 0 6px">Revisa el historial de entregas de TODOS los jugadores, detecta pedidos cobrados más de una vez y les programa el cobro automático en 2 plazos (1 mes de diferencia). Los jugadores afectados verán un aviso obligatorio en su próximo inicio de sesión.</p><button class="danger" data-action="admin-scan-duplicates">🔎 Escanear y cobrar ahora</button><div id="adminFraudScanResults" style="margin-top:8px"></div><div id="adminLookupResults" style="margin-top:8px"></div></div>` : "";
             $("settingsContent").innerHTML = `
             ${state.initialized ? `<div class="card"><h3>🏢 Nombre de tu empresa</h3><p style="color:var(--muted)">Nombre actual: <strong>${escapeHtml(currentName) || "Sin nombre"}</strong></p><label><span class="label">Cambiar nombre</span><input id="companyNameInput" maxlength="40" placeholder="Ej: Transportes García, LogiSur..." value="${escapeHtml(currentName)}"></label><div class="row" style="margin-top:10px"><button class="primary" data-action="save-company-name">Guardar nombre</button></div></div>` : ""}
             ${adminPanel}
@@ -12381,6 +12418,23 @@
             }
         }
 
+        async function adminScanDuplicates() {
+            const resultsEl = $("adminFraudScanResults");
+            if (!confirm("⚠️ ¿Escanear a TODOS los jugadores en busca de pedidos duplicados y programarles el cobro automático en 2 plazos? Esta acción no se puede deshacer fácilmente.\n\n¿Confirmar?")) return;
+            if (resultsEl) resultsEl.innerHTML = `<p class="muted">Escaneando... puede tardar un momento.</p>`;
+            try {
+                const r = await apiCall("POST", "/api/admin/scan-and-charge-duplicates", {});
+                if (!resultsEl) return;
+                if (!r.applied || !r.applied.length) {
+                    resultsEl.innerHTML = `<p class="muted">Escaneados ${r.playersScanned} jugadores. No se ha detectado ningún pedido duplicado. 🎉</p>`;
+                    return;
+                }
+                resultsEl.innerHTML = `<p style="color:#e8a504;font-weight:700">Escaneados ${r.playersScanned} jugadores · ${r.playersAffected} afectados</p>` +
+                    r.applied.map(a => `<div class="card" style="margin:6px 0;border-color:#ff3b30"><strong>${a.company}</strong><br>Total a devolver: ${fmtMoney(a.excess)}<br>Cuota 1: ${fmtMoney(a.perInstallment)} (${fmtDate(a.firstPaymentTs)})<br>Cuota 2: ${fmtMoney(a.excess - a.perInstallment)} (1 mes después)<br><span class="muted" style="font-size:11px">UID: ${a.uid}</span></div>`).join("");
+            } catch (e) {
+                if (resultsEl) resultsEl.innerHTML = `<p class="muted">Error: ${e.message}</p>`;
+            }
+        }
         async function adminGrantJackpot() {
             const uidInput = $("adminLookupUid");
             if (!uidInput) return;
@@ -13067,6 +13121,7 @@
             if (action === "admin-refund-weekly-airport") return adminRefundWeeklyAirportLimit(parseInt(btn.dataset.id, 10));
             if (action === "admin-lookup-airport-contracts") return adminLookupAirportContracts();
             if (action === "admin-grant-jackpot") return adminGrantJackpot();
+            if (action === "admin-scan-duplicates") return adminScanDuplicates();
             if (action === "show-trip-info") return showTripInfo(btn.dataset.trip);
             if (action === "admin-cancel-gas-order") return adminCancelGasOrder(parseInt(btn.dataset.id, 10));
             if (action === "alliance-toggle-block") return toggleBlockMember(btn.dataset.uid, btn.dataset.name, btn.dataset.blocked === "true");
