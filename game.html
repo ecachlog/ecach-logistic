@@ -500,7 +500,7 @@
                     <div class="mhud" id="mobileRouletteHud" style="display:none;background:#35c759;color:#000;cursor:pointer" title="Tienes la ruleta disponible para tirar">🎰</div>
                 </div>
                 <button class="msg-bell" id="msgBell" data-section="messages" aria-label="Mensajes" style="display:none">✉️<span class="msg-bell-dot"></span></button>
-                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v8.9</span>
+                <span style="font-size:11px;color:#ffffff;font-weight:700;margin-right:6px;align-self:center;letter-spacing:.5px">v9.0</span>
                 <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menú">
                     <span></span><span></span><span></span>
                 </button>
@@ -528,7 +528,7 @@
                 </nav>
             </div>
             <div class="brand">
-                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v8.9</span></div>
+                <div class="logo"><span>EC</span> ECACH LOGISTIC <span style="font-size:11px;color:#ffffff;font-weight:700;letter-spacing:.5px">v9.0</span></div>
                 <p>Simulador en tiempo real de transporte ADR de gasóleo y gasolina en Europa.</p>
             </div>
             <nav class="nav" id="nav">
@@ -668,20 +668,20 @@
         // Helper: get current Firebase ID token to authenticate API calls
         let _cachedAuthToken = null;
         let _cachedAuthTokenAt = 0;
-        async function getAuthToken() {
+        async function getAuthToken(forceRefresh = false) {
             if (!fbUser) return null;
             try {
                 // Firebase tokens last ~1h; cache for 30 min so we always have one ready for emergency saves.
                 const now = Date.now();
-                if (_cachedAuthToken && (now - _cachedAuthTokenAt) < 30 * 60 * 1000) return _cachedAuthToken;
-                const t = await fbUser.getIdToken();
+                if (!forceRefresh && _cachedAuthToken && (now - _cachedAuthTokenAt) < 30 * 60 * 1000) return _cachedAuthToken;
+                const t = await fbUser.getIdToken(forceRefresh);
                 _cachedAuthToken = t; _cachedAuthTokenAt = now;
                 return t;
-            } catch(e) { console.warn("getIdToken error", e); return _cachedAuthToken; }
+            } catch(e) { console.warn("getIdToken error", e); return forceRefresh ? null : _cachedAuthToken; }
         }
         // Helper: call backend API with auth
-        async function apiCall(method, path, body = null) {
-            const token = await getAuthToken();
+        async function apiCall(method, path, body = null, forceFreshToken = false) {
+            const token = await getAuthToken(forceFreshToken);
             if (!token && path !== "/api/ranking") throw new Error("No auth token");
             const opts = {
                 method,
@@ -692,6 +692,12 @@
             const res = await fetch(BACKEND_URL + path, opts);
             if (!res.ok) {
                 const text = await res.text();
+                // If the token was rejected as invalid/expired, force-refresh it once and retry — this fixes
+                // the case where a long-idle tab (or a device with clock drift) ends up holding onto a stale
+                // cached token that even Firebase's own internal refresh cycle never got a chance to renew.
+                if (res.status === 401 && !forceFreshToken && text.includes("invalid_token")) {
+                    return apiCall(method, path, body, true);
+                }
                 throw new Error(`API ${method} ${path} failed: ${res.status} ${text}`);
             }
             return res.json();
